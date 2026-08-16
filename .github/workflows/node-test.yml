@@ -91,14 +91,40 @@ jobs:
             esac
           fi
 
+      # npm の --if-present は pnpm で非互換（引数扱いで Missing script エラー）
+      # のため、package.json の script 有無を node で判定してから実行する（pm 非依存）。
       - name: Lint
         if: ${{ inputs.run-lint }}
-        run: ${{ inputs.package-manager }} run ${{ inputs.lint-script }} --if-present
+        env:
+          PM: ${{ inputs.package-manager }}
+          SCRIPT: ${{ inputs.lint-script }}
+        run: |
+          if node -e "process.exit((require('./package.json').scripts||{})['$SCRIPT']?0:1)"; then
+            "$PM" run "$SCRIPT"
+          else
+            echo "No '$SCRIPT' script — skipping"
+          fi
 
       - name: Build
         if: ${{ inputs.run-build }}
-        run: ${{ inputs.package-manager }} run ${{ inputs.build-script }} --if-present
+        env:
+          PM: ${{ inputs.package-manager }}
+          SCRIPT: ${{ inputs.build-script }}
+        run: |
+          if node -e "process.exit((require('./package.json').scripts||{})['$SCRIPT']?0:1)"; then
+            "$PM" run "$SCRIPT"
+          else
+            echo "No '$SCRIPT' script — skipping"
+          fi
 
       - name: Test
         if: ${{ inputs.run-test }}
-        run: ${{ inputs.package-manager }} run ${{ inputs.test-script }} --if-present
+        env:
+          PM: ${{ inputs.package-manager }}
+          SCRIPT: ${{ inputs.test-script }}
+        run: |
+          if node -e "process.exit((require('./package.json').scripts||{})['$SCRIPT']?0:1)"; then
+            "$PM" run "$SCRIPT"
+          else
+            echo "No '$SCRIPT' script — skipping"
+          fi
