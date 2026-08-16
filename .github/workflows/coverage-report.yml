@@ -1,0 +1,107 @@
+name: Coverage Report (Weekly)
+
+on:
+  schedule:
+    # 毎週月曜 09:00 JST (00:00 UTC)
+    - cron: '0 0 * * 1'
+  workflow_dispatch:
+    inputs:
+      threshold:
+        description: カバレッジ閾値 (%)
+        type: number
+        default: 60
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Setup Go (for go tool cover)
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: false
+
+      - name: Generate coverage report
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          THRESHOLD: ${{ inputs.threshold || 60 }}
+        run: |
+          python3 scripts/coverage_check.py \
+            --org flipslidersand-labs \
+            --threshold $THRESHOLD \
+            > /tmp/coverage-report.md 2>/tmp/check-stderr.log || true
+
+          echo "--- report ---"
+          cat /tmp/coverage-report.md
+
+      - name: Generate JSON for badge
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          THRESHOLD: ${{ inputs.threshold || 60 }}
+        run: |
+          python3 scripts/coverage_check.py \
+            --org flipslidersand-labs \
+            --threshold $THRESHOLD \
+            --json \
+            > /tmp/coverage-report.json 2>/dev/null || echo "[]" > /tmp/coverage-report.json
+
+      - name: Upload report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-${{ github.run_id }}
+          path: |
+            /tmp/coverage-report.md
+            /tmp/coverage-report.json
+          retention-days: 30
+
+      - name: Find existing report issue
+        id: find-issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ISSUE_NUMBER=$(gh issue list \
+            --repo ${{ github.repository }} \
+            --label "coverage-report" \
+            --state open \
+            --json number \
+            --jq '.[0].number // empty' 2>/dev/null || echo "")
+          echo "number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
+
+      - name: Update or create report issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          THRESHOLD: ${{ inputs.threshold || 60 }}
+        run: |
+          BODY=$(cat <<'BODY_EOF'
+          <!-- coverage-report-auto -->
+          BODY_EOF
+          )
+          BODY="${BODY}
+          $(cat /tmp/coverage-report.md)
+
+          ---
+          *閾値: ${THRESHOLD}% | 自動生成: $(date -u '+%Y-%m-%d %H:%M UTC')*"
+
+          if [ -n "${{ steps.find-issue.outputs.number }}" ]; then
+            gh issue edit "${{ steps.find-issue.outputs.number }}" \
+              --repo ${{ github.repository }} \
+              --body "$BODY"
+            echo "Updated issue #${{ steps.find-issue.outputs.number }}"
+          else
+            gh issue create \
+              --repo ${{ github.repository }} \
+              --title "📊 カバレッジレポート (週次)" \
+              --body "$BODY" \
+              --label "coverage-report"
+            echo "Created new issue"
+          fi
