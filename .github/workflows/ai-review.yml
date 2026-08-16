@@ -1,0 +1,171 @@
+name: AI Code Review (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      model:
+        description: 使用モデル
+        type: string
+        default: "claude-haiku-4-5-20251001"
+      max-diff-lines:
+        description: レビュー対象の最大 diff 行数
+        type: number
+        default: 500
+      fail-on-high:
+        description: HIGH 重大度の指摘で CI 失敗にするか
+        type: boolean
+        default: false
+      ignore-paths:
+        description: レビュー除外パターン（カンマ区切り glob）
+        type: string
+        default: "*.lock,*.sum,*.pb.go,*_generated.go"
+    secrets:
+      ANTHROPIC_API_KEY:
+        required: true
+
+jobs:
+  ai-review:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get PR diff
+        id: diff
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          MAX_DIFF_LINES: ${{ inputs.max-diff-lines }}
+        run: |
+          DIFF=$(git diff "origin/${BASE_REF}...HEAD" \
+            -- ':!*.lock' ':!*.sum' ':!*.pb.go' ':!*_generated.go' \
+            | head -n "$MAX_DIFF_LINES")
+          {
+            echo "diff<<DIFF_EOF"
+            echo "$DIFF"
+            echo "DIFF_EOF"
+          } >> "$GITHUB_OUTPUT"
+          # 空 diff は 0 行（echo "" は wc -l で 1 を返すため明示判定）
+          if [ -z "$DIFF" ]; then
+            LINE_COUNT=0
+          else
+            LINE_COUNT=$(printf '%s\n' "$DIFF" | wc -l)
+          fi
+          echo "lines=$LINE_COUNT" >> "$GITHUB_OUTPUT"
+
+      - name: AI Review via Claude
+        id: review
+        if: steps.diff.outputs.lines != '0'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # diff / model はシェルに補間せず env 経由で渡す（注入・クォート破損対策）
+          DIFF: ${{ steps.diff.outputs.diff }}
+          MODEL: ${{ inputs.model }}
+        run: |
+          # payload を Python で組み立ててファイルに書き出す。
+          # -d "$VAR" は $(...) / バックティックが再評価される危険があるため -d @file を使う。
+          python3 <<'PY' > "$RUNNER_TEMP/payload.json"
+          import json, os
+          diff = os.environ["DIFF"]
+          prompt = (
+              "You are a senior code reviewer. Review the following git diff for:\n"
+              "1. Bugs and correctness issues\n"
+              "2. Security vulnerabilities (OWASP top 10)\n"
+              "3. Performance issues\n"
+              "4. Code clarity and maintainability\n\n"
+              "For each finding output JSON like:\n"
+              '{"severity": "HIGH|MEDIUM|LOW", "file": "path", "line": N, "message": "..."}\n\n'
+              "Output a JSON array of findings. If none, output [].\n"
+              "Limit to top 10 most important findings.\n\n"
+              "Diff:\n" + diff
+          )
+          json.dump({
+              "model": os.environ["MODEL"],
+              "max_tokens": 2048,
+              "messages": [{"role": "user", "content": prompt}],
+          }, __import__("sys").stdout)
+          PY
+
+          RESPONSE=$(curl -s https://api.anthropic.com/v1/messages \
+            -H "x-api-key: $ANTHROPIC_API_KEY" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "content-type: application/json" \
+            -d @"$RUNNER_TEMP/payload.json")
+
+          TEXT=$(echo "$RESPONSE" | python3 -c 'import json,sys; print(json.load(sys.stdin)["content"][0]["text"])' 2>/dev/null || echo "[]")
+          {
+            echo "findings<<REVIEW_EOF"
+            echo "$TEXT"
+            echo "REVIEW_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+          HIGH_COUNT=$(echo "$TEXT" | python3 -c '
+          import json, sys
+          try:
+              findings = json.loads(sys.stdin.read())
+              print(sum(1 for f in findings if f.get("severity") == "HIGH"))
+          except Exception:
+              print(0)
+          ')
+          echo "high_count=$HIGH_COUNT" >> "$GITHUB_OUTPUT"
+
+      - name: Format and post review comment
+        if: steps.diff.outputs.lines != '0'
+        uses: actions/github-script@v7
+        env:
+          # findings（モデル出力）を JS ソースへ補間するとバッククォート等で破損するため env 経由
+          FINDINGS: ${{ steps.review.outputs.findings }}
+          DIFF_LINES: ${{ steps.diff.outputs.lines }}
+        with:
+          script: |
+            let findings
+            try {
+              findings = JSON.parse(process.env.FINDINGS || '[]')
+            } catch {
+              findings = []
+            }
+            const diffLines = Number(process.env.DIFF_LINES) || 0
+
+            if (!Array.isArray(findings) || findings.length === 0) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: '## 🤖 AI Code Review\n\n✅ 指摘なし（diff: ' + diffLines + ' 行）',
+              })
+              return
+            }
+
+            const severityIcon = { HIGH: '🔴', MEDIUM: '🟡', LOW: '🔵' }
+            const rows = findings.map(f => {
+              const icon = severityIcon[f.severity] || '⚪'
+              const loc = f.file ? `\`${f.file}${f.line ? ':' + f.line : ''}\`` : '-'
+              return `| ${icon} ${f.severity} | ${loc} | ${f.message} |`
+            }).join('\n')
+
+            const highCount = findings.filter(f => f.severity === 'HIGH').length
+            const body = `## 🤖 AI Code Review
+
+            **diff**: ${diffLines} 行 | **指摘**: ${findings.length}件 (🔴HIGH: ${highCount})
+
+            | 重大度 | 場所 | 内容 |
+            |--------|------|------|
+            ${rows}
+
+            > \`# ai-review: ignore\` をコミットメッセージに含めるとスキップできます`
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            })
+
+      - name: Fail on HIGH findings
+        if: inputs.fail-on-high && steps.diff.outputs.lines != '0' && steps.review.outputs.high_count != '0'
+        run: |
+          echo "HIGH severity findings detected: ${{ steps.review.outputs.high_count }}"
+          exit 1
