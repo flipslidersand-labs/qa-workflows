@@ -1,0 +1,117 @@
+name: Pre-Deploy Check (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      dockerfile-path:
+        description: Dockerfile のパス
+        type: string
+        default: "Dockerfile"
+      build-context:
+        description: Docker build コンテキスト
+        type: string
+        default: "."
+      build-args:
+        description: Docker build 追加引数（改行区切り KEY=VALUE）
+        type: string
+        default: ""
+      migration-command:
+        description: DB migration dry-run コマンド（空の場合スキップ）
+        type: string
+        default: ""
+      audit-type:
+        description: 脆弱性スキャン種別（trivy|pip-audit|npm-audit|none）
+        type: string
+        default: "none"
+      audit-path:
+        description: pip-audit / npm-audit の対象ディレクトリ
+        type: string
+        default: "."
+      fail-on-vuln:
+        description: 脆弱性検出時に CI を失敗させるか
+        type: boolean
+        default: true
+      working-directory:
+        description: migration-command / audit の実行ディレクトリ
+        type: string
+        default: "."
+
+jobs:
+  # ─────────────────────────────────────────────
+  # 1. Docker build 成功確認
+  # ─────────────────────────────────────────────
+  build:
+    name: Docker Build Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.build-context }}
+          file: ${{ inputs.dockerfile-path }}
+          push: false
+          build-args: ${{ inputs.build-args }}
+          tags: pre-deploy-check:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ─────────────────────────────────────────────
+  # 2. 依存関係 脆弱性スキャン
+  # ─────────────────────────────────────────────
+  dependency-audit:
+    name: Dependency Audit (${{ inputs.audit-type }})
+    runs-on: ubuntu-latest
+    if: inputs.audit-type != 'none'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Trivy scan (filesystem)
+        if: inputs.audit-type == 'trivy'
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: ${{ inputs.build-context }}
+          exit-code: ${{ inputs.fail-on-vuln && '1' || '0' }}
+          severity: HIGH,CRITICAL
+          format: table
+
+      - name: pip-audit
+        if: inputs.audit-type == 'pip-audit'
+        working-directory: ${{ inputs.audit-path }}
+        run: |
+          pip install pip-audit --quiet
+          pip-audit \
+            --vulnerability-service pypi \
+            --format columns \
+            ${{ inputs.fail-on-vuln && '' || '--no-fail' }}
+
+      - name: npm audit
+        if: inputs.audit-type == 'npm-audit'
+        working-directory: ${{ inputs.audit-path }}
+        run: |
+          npm audit --audit-level=high \
+            ${{ inputs.fail-on-vuln && '' || '|| true' }}
+
+  # ─────────────────────────────────────────────
+  # 3. DB migration dry-run
+  # ─────────────────────────────────────────────
+  migration-dry-run:
+    name: Migration Dry-Run
+    runs-on: ubuntu-latest
+    if: inputs.migration-command != ''
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run migration dry-run
+        working-directory: ${{ inputs.working-directory }}
+        env:
+          DRY_RUN: "true"
+          MIGRATE_DRY_RUN: "true"
+        run: ${{ inputs.migration-command }}
