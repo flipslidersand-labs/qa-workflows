@@ -1,0 +1,117 @@
+name: Smoke Test (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      service-url:
+        description: ヘルスチェック対象のベース URL（例: https://api.example.com）
+        type: string
+        required: true
+      health-path:
+        description: ヘルスチェック エンドポイント
+        type: string
+        default: "/health"
+      timeout:
+        description: タイムアウト（秒）— この時間内に 200 が返らなければ失敗
+        type: number
+        default: 60
+      retry-interval:
+        description: リトライ間隔（秒）
+        type: number
+        default: 5
+      expected-status:
+        description: 期待する HTTP ステータスコード
+        type: number
+        default: 200
+      extra-checks:
+        description: 追加チェック URL（改行区切り PATH:EXPECTED_STATUS）
+        type: string
+        default: ""
+
+    outputs:
+      rollback:
+        description: ロールバックが必要か（true/false）
+        value: ${{ jobs.smoke.outputs.rollback }}
+      status-code:
+        description: 最後に確認した HTTP ステータスコード
+        value: ${{ jobs.smoke.outputs.status_code }}
+
+jobs:
+  smoke:
+    name: Smoke Test
+    runs-on: ubuntu-latest
+    outputs:
+      rollback: ${{ steps.check.outputs.rollback }}
+      status_code: ${{ steps.check.outputs.status_code }}
+
+    steps:
+      - name: Wait & health check
+        id: check
+        env:
+          SERVICE_URL: ${{ inputs.service-url }}
+          HEALTH_PATH: ${{ inputs.health-path }}
+          TIMEOUT: ${{ inputs.timeout }}
+          RETRY_INTERVAL: ${{ inputs.retry-interval }}
+          EXPECTED_STATUS: ${{ inputs.expected-status }}
+        run: |
+          URL="${SERVICE_URL}${HEALTH_PATH}"
+          echo "Checking: $URL"
+          echo "Timeout: ${TIMEOUT}s  Retry: ${RETRY_INTERVAL}s  Expected: ${EXPECTED_STATUS}"
+
+          elapsed=0
+          status_code=0
+
+          while [ $elapsed -lt $TIMEOUT ]; do
+            status_code=$(curl -s -o /dev/null -w "%{http_code}" \
+              --max-time 10 --connect-timeout 5 "$URL" 2>/dev/null || echo "000")
+
+            echo "  [${elapsed}s] HTTP ${status_code}"
+
+            if [ "$status_code" = "$EXPECTED_STATUS" ]; then
+              echo "status_code=$status_code" >> $GITHUB_OUTPUT
+              echo "rollback=false" >> $GITHUB_OUTPUT
+              echo "✅ Health check passed (HTTP ${status_code})"
+              exit 0
+            fi
+
+            sleep $RETRY_INTERVAL
+            elapsed=$((elapsed + RETRY_INTERVAL))
+          done
+
+          echo "status_code=$status_code" >> $GITHUB_OUTPUT
+          echo "rollback=true" >> $GITHUB_OUTPUT
+          echo "❌ Health check failed after ${TIMEOUT}s (last HTTP ${status_code})"
+          exit 1
+
+      - name: Extra endpoint checks
+        if: inputs.extra-checks != ''
+        env:
+          BASE_URL: ${{ inputs.service-url }}
+          CHECKS: ${{ inputs.extra-checks }}
+        run: |
+          failed=0
+          while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            path="${line%%:*}"
+            expected="${line##*:}"
+            url="${BASE_URL}${path}"
+            status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$url" 2>/dev/null || echo "000")
+            if [ "$status" = "$expected" ]; then
+              echo "  ✅ $path → HTTP $status"
+            else
+              echo "  ❌ $path → HTTP $status (expected $expected)"
+              failed=$((failed + 1))
+            fi
+          done <<< "$CHECKS"
+
+          if [ $failed -gt 0 ]; then
+            echo "::error::${failed} extra endpoint(s) failed"
+            exit 1
+          fi
+
+      - name: Rollback trigger
+        if: failure()
+        run: |
+          echo "::error::Smoke test failed — rollback required"
+          echo "::notice::Set rollback=true in downstream jobs to trigger rollback"
+          echo "rollback=true" >> $GITHUB_OUTPUT
