@@ -1,0 +1,79 @@
+name: Eval Regression Check
+
+on:
+  pull_request:
+    paths:
+      - "eval/datasets/**"
+      - "eval/rag/**"
+      - "eval/llm/**"
+      - "eval/reports/**"
+
+jobs:
+  regression-check:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install qa-platform
+        run: pip install -e . --quiet
+
+      - name: Find baseline and current reports
+        id: reports
+        run: |
+          # PR の変更ファイルから current report を特定
+          CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- eval/reports/)
+          echo "changed_reports=$CHANGED" >> $GITHUB_OUTPUT
+
+          # baseline: main ブランチの最新 report
+          git checkout origin/${{ github.base_ref }} -- eval/reports/ 2>/dev/null || true
+          BASELINE=$(ls eval/reports/*.json 2>/dev/null | sort | tail -1)
+          echo "baseline=$BASELINE" >> $GITHUB_OUTPUT
+
+          # current に戻す
+          git checkout HEAD -- eval/reports/ 2>/dev/null || true
+          CURRENT=$(ls eval/reports/*.json 2>/dev/null | sort | tail -1)
+          echo "current=$CURRENT" >> $GITHUB_OUTPUT
+
+      - name: Compare reports
+        id: compare
+        if: steps.reports.outputs.baseline != '' && steps.reports.outputs.current != ''
+        run: |
+          RESULT=$(qa-eval compare \
+            "${{ steps.reports.outputs.baseline }}" \
+            "${{ steps.reports.outputs.current }}" \
+            --markdown \
+            --threshold 0.05 2>&1) || REGRESSION=true
+
+          echo "result<<EOF" >> $GITHUB_OUTPUT
+          echo "$RESULT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "regression=${REGRESSION:-false}" >> $GITHUB_OUTPUT
+
+      - name: Post PR comment
+        if: steps.compare.outputs.result != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = `${{ steps.compare.outputs.result }}`
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            })
+
+      - name: Fail on regression
+        if: steps.compare.outputs.regression == 'true'
+        run: |
+          echo "Regression detected. Check PR comment for details."
+          exit 1
