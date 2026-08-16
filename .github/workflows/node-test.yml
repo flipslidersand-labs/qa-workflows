@@ -68,6 +68,9 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: ${{ inputs.node-version }}
+          # 自動 pm キャッシュは pm 実行ファイルを要求し、corepack 有効化前だと
+          # 「Unable to locate executable file: pnpm」で失敗するため無効化する
+          package-manager-cache: false
 
       - name: Enable corepack (pnpm/yarn)
         if: ${{ inputs.package-manager != 'npm' }}
