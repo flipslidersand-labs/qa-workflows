@@ -1,0 +1,98 @@
+name: Node Test (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: Node バージョン
+        type: string
+        default: "20"
+      package-manager:
+        description: パッケージマネージャ（npm / pnpm / yarn）
+        type: string
+        default: "npm"
+      working-directory:
+        description: 実行ディレクトリ
+        type: string
+        default: "."
+      install-command:
+        description: 依存インストールコマンド（空なら package-manager から自動導出）
+        type: string
+        default: ""
+      lint-script:
+        description: lint の npm script 名
+        type: string
+        default: "lint"
+      build-script:
+        description: build の npm script 名
+        type: string
+        default: "build"
+      test-script:
+        description: test の npm script 名
+        type: string
+        default: "test"
+      run-lint:
+        description: lint を実行するか（script が無ければ --if-present で skip）
+        type: boolean
+        default: true
+      run-build:
+        description: build を実行するか（script が無ければ --if-present で skip）
+        type: boolean
+        default: true
+      run-test:
+        description: test を実行するか（script が無ければ --if-present で skip）
+        type: boolean
+        default: true
+      runner:
+        description: >-
+          実行 runner。未指定なら vars.GATE_RUNNER →
+          ubuntu-latest の順に自動選択（caller は通常渡さない）
+        type: string
+        default: ""
+    secrets:
+      token:
+        description: GitHub token（必要な場合）
+        required: false
+
+jobs:
+  test:
+    # caller の with で vars を参照すると解決に失敗するため、runner 選択は reusable 側で行う
+    runs-on: ${{ inputs.runner != '' && inputs.runner || vars.GATE_RUNNER || 'ubuntu-latest' }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Enable corepack (pnpm/yarn)
+        if: ${{ inputs.package-manager != 'npm' }}
+        run: corepack enable
+
+      - name: Install dependencies
+        run: |
+          if [ -n "${{ inputs.install-command }}" ]; then
+            ${{ inputs.install-command }}
+          else
+            case "${{ inputs.package-manager }}" in
+              pnpm) pnpm install ;;
+              yarn) yarn install ;;
+              *)    npm install ;;
+            esac
+          fi
+
+      - name: Lint
+        if: ${{ inputs.run-lint }}
+        run: ${{ inputs.package-manager }} run ${{ inputs.lint-script }} --if-present
+
+      - name: Build
+        if: ${{ inputs.run-build }}
+        run: ${{ inputs.package-manager }} run ${{ inputs.build-script }} --if-present
+
+      - name: Test
+        if: ${{ inputs.run-test }}
+        run: ${{ inputs.package-manager }} run ${{ inputs.test-script }} --if-present
