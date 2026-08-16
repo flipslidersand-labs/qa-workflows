@@ -1,0 +1,70 @@
+name: Python Test (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        description: Python バージョン
+        type: string
+        default: "3.12"
+      coverage-threshold:
+        description: カバレッジ閾値（%）
+        type: number
+        default: 60
+      working-directory:
+        description: テスト実行ディレクトリ
+        type: string
+        default: "."
+      test-path:
+        description: pytest の対象パス
+        type: string
+        default: "tests/"
+      install-extras:
+        description: pip install -e "[extras]" の extras 部分
+        type: string
+        default: "dev"
+    secrets:
+      token:
+        required: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          pip install -e ".[${{ inputs.install-extras }}]" --quiet
+
+      - name: Lint (ruff)
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          pip install ruff --quiet
+          ruff check .
+          ruff format --check .
+
+      - name: Run tests
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          pytest ${{ inputs.test-path }} \
+            --cov=. \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage.xml \
+            --cov-fail-under=${{ inputs.coverage-threshold }} \
+            -v
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: python-coverage-${{ github.sha }}
+          path: ${{ inputs.working-directory }}/coverage.xml
+          retention-days: 7
