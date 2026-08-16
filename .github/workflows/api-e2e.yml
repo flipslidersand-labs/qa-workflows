@@ -1,0 +1,50 @@
+name: API E2E (k6)
+
+on:
+  workflow_call:
+    inputs:
+      compose-file:
+        description: "docker-compose.yml path relative to repo root"
+        type: string
+        default: "docker-compose.yml"
+      base-url:
+        description: "Service base URL inside the Docker network"
+        type: string
+        default: "http://app:8080"
+      k6-script:
+        description: "k6 scenario script path (relative to qa-platform infra/k6/)"
+        type: string
+        default: "scenarios/crud.js"
+      duration:
+        description: "Override k6 test duration (e.g. '60s')"
+        type: string
+        default: ""
+
+jobs:
+  api-e2e:
+    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout qa-platform
+        uses: actions/checkout@v4
+        with:
+          repository: flipslidersand-labs/qa-platform
+          path: qa-platform
+
+      - name: Start service
+        run: |
+          docker compose -f ${{ inputs.compose-file }} up -d --wait
+        timeout-minutes: 5
+
+      - name: Run k6
+        uses: grafana/k6-action@v0.3.1
+        with:
+          filename: qa-platform/infra/k6/${{ inputs.k6-script }}
+        env:
+          BASE_URL: ${{ inputs.base-url }}
+          K6_DURATION: ${{ inputs.duration }}
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f ${{ inputs.compose-file }} down -v
