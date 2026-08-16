@@ -1,0 +1,91 @@
+name: Go Test (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      go-version:
+        description: Go バージョン
+        type: string
+        default: "1.23"
+      coverage-threshold:
+        description: カバレッジ閾値（%）
+        type: number
+        default: 60
+      test-flags:
+        description: go test に渡す追加フラグ
+        type: string
+        default: "-race -timeout 60s"
+      working-directory:
+        description: テスト実行ディレクトリ
+        type: string
+        default: "."
+      runner:
+        description: >-
+          実行 runner。未指定なら vars.GATE_RUNNER →
+          ubuntu-latest の順に自動選択（caller は通常渡さない）
+        type: string
+        default: ""
+      run-vet:
+        description: go vet を実行するか
+        type: boolean
+        default: true
+      run-build:
+        description: go build を実行するか
+        type: boolean
+        default: true
+    secrets:
+      token:
+        description: GitHub token（必要な場合）
+        required: false
+
+jobs:
+  test:
+    # caller の with で vars を参照すると解決に失敗するため、runner 選択は
+    # reusable 側で行う（inputs.runner → vars.GATE_RUNNER → ubuntu-latest）
+    runs-on: ${{ inputs.runner != '' && inputs.runner || vars.GATE_RUNNER || 'ubuntu-latest' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ inputs.go-version }}
+          cache: true
+
+      - name: go vet
+        if: ${{ inputs.run-vet }}
+        working-directory: ${{ inputs.working-directory }}
+        run: go vet ./...
+
+      - name: go build
+        if: ${{ inputs.run-build }}
+        working-directory: ${{ inputs.working-directory }}
+        run: go build ./...
+
+      - name: Run tests
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          go test ${{ inputs.test-flags }} \
+            -coverprofile=coverage.out \
+            -covermode=atomic \
+            ./...
+
+      - name: Check coverage threshold
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          COVERAGE=$(go tool cover -func=coverage.out \
+            | grep "total:" | awk '{print $3}' | tr -d '%')
+          echo "Coverage: ${COVERAGE}%"
+          echo "Threshold: ${{ inputs.coverage-threshold }}%"
+          if (( $(echo "$COVERAGE < ${{ inputs.coverage-threshold }}" | bc -l) )); then
+            echo "Coverage ${COVERAGE}% is below threshold ${{ inputs.coverage-threshold }}%"
+            exit 1
+          fi
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: go-coverage-${{ github.sha }}
+          path: ${{ inputs.working-directory }}/coverage.out
+          retention-days: 7
