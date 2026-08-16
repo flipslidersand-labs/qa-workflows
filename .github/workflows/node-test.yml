@@ -77,11 +77,14 @@ jobs:
         run: corepack enable
 
       - name: Install dependencies
+        env:
+          INSTALL_CMD: ${{ inputs.install-command }}
+          PM: ${{ inputs.package-manager }}
         run: |
-          if [ -n "${{ inputs.install-command }}" ]; then
-            ${{ inputs.install-command }}
+          if [ -n "$INSTALL_CMD" ]; then
+            eval "$INSTALL_CMD"
           else
-            case "${{ inputs.package-manager }}" in
+            case "$PM" in
               pnpm) pnpm install ;;
               yarn) yarn install ;;
               *)    npm install ;;
