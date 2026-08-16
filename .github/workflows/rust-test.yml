@@ -1,0 +1,116 @@
+name: Rust Test (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      rust-version:
+        description: Rust toolchain（stable / 1.xx / nightly 等）
+        type: string
+        default: "stable"
+      coverage-threshold:
+        description: 最低カバレッジ（%）。run-coverage=true のとき cargo-llvm-cov で gate
+        type: number
+        default: 60
+      test-args:
+        description: cargo test / llvm-cov のスコープ引数（例 "--workspace" や "-p foo -p bar"）
+        type: string
+        default: "--workspace"
+      clippy-args:
+        description: cargo clippy のスコープ引数
+        type: string
+        default: "--workspace --all-targets"
+      clippy-deny:
+        description: clippy で deny する lint（-D で付与）
+        type: string
+        default: "warnings"
+      working-directory:
+        description: 実行ディレクトリ
+        type: string
+        default: "."
+      runner:
+        description: >-
+          実行 runner。未指定なら vars.GATE_RUNNER →
+          ubuntu-latest の順に自動選択（caller は通常渡さない）
+        type: string
+        default: ""
+      system-deps:
+        description: 事前に apt-get install する追加パッケージ（空でスキップ）
+        type: string
+        default: ""
+      run-fmt:
+        description: cargo fmt --check を実行するか
+        type: boolean
+        default: true
+      run-clippy:
+        description: cargo clippy を実行するか
+        type: boolean
+        default: true
+      run-coverage:
+        description: cargo-llvm-cov で coverage を計測・gate するか（false なら cargo test のみ）
+        type: boolean
+        default: true
+    secrets:
+      token:
+        description: GitHub token（必要な場合）
+        required: false
+
+jobs:
+  test:
+    # caller の with で vars を参照すると解決に失敗するため、runner 選択は
+    # reusable 側で行う（inputs.runner → vars.GATE_RUNNER → ubuntu-latest）
+    runs-on: ${{ inputs.runner != '' && inputs.runner || vars.GATE_RUNNER || 'ubuntu-latest' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ inputs.rust-version }}
+          components: rustfmt, clippy, llvm-tools-preview
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ inputs.working-directory }}
+
+      - name: Install system deps
+        if: ${{ inputs.system-deps != '' }}
+        run: sudo apt-get update && sudo apt-get install -y ${{ inputs.system-deps }}
+
+      - name: cargo fmt --check
+        if: ${{ inputs.run-fmt }}
+        working-directory: ${{ inputs.working-directory }}
+        run: cargo fmt --all -- --check
+
+      - name: cargo clippy
+        if: ${{ inputs.run-clippy }}
+        working-directory: ${{ inputs.working-directory }}
+        run: cargo clippy ${{ inputs.clippy-args }} -- -D ${{ inputs.clippy-deny }}
+
+      - name: cargo build
+        working-directory: ${{ inputs.working-directory }}
+        run: cargo build ${{ inputs.test-args }}
+
+      - name: Install cargo-llvm-cov
+        if: ${{ inputs.run-coverage }}
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Test + coverage
+        if: ${{ inputs.run-coverage }}
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          cargo llvm-cov ${{ inputs.test-args }} \
+            --lcov --output-path lcov.info \
+            --fail-under-lines ${{ inputs.coverage-threshold }}
+
+      - name: Test (no coverage)
+        if: ${{ ! inputs.run-coverage }}
+        working-directory: ${{ inputs.working-directory }}
+        run: cargo test ${{ inputs.test-args }}
+
+      - name: Upload coverage
+        if: ${{ always() && inputs.run-coverage }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-coverage-${{ github.sha }}
+          path: ${{ inputs.working-directory }}/lcov.info
+          retention-days: 7
