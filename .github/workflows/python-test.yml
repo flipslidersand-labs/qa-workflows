@@ -20,9 +20,31 @@ on:
         type: string
         default: "tests/"
       install-extras:
-        description: pip install -e "[extras]" の extras 部分
+        description: pip install -e "[extras]" の extras 部分（install-command 未指定時のみ使用）
         type: string
         default: "dev"
+      install-command:
+        description: >-
+          依存インストールコマンドの上書き。空なら `pip install -e ".[extras]"`。
+          pyproject を持たない repo は `pip install -r requirements.txt` 等を渡す。
+        type: string
+        default: ""
+      pre-install:
+        description: '依存インストール前に実行する任意コマンド（例: torch CPU index の先入れ）'
+        type: string
+        default: ""
+      pytest-args:
+        description: 'pytest への追加引数（例: -k "not gpu"）'
+        type: string
+        default: ""
+      run-tests:
+        description: false なら pytest をスキップし lint/format のみのゲートにする
+        type: boolean
+        default: true
+      ruff-version:
+        description: ruff の固定バージョン（空なら最新。CI の ruff 更新差分を避けたい時に固定）
+        type: string
+        default: ""
     secrets:
       token:
         required: false
@@ -39,22 +61,36 @@ jobs:
           python-version: ${{ inputs.python-version }}
           cache: pip
 
+      - name: Pre-install
+        if: ${{ inputs.pre-install != '' }}
+        working-directory: ${{ inputs.working-directory }}
+        run: ${{ inputs.pre-install }}
+
       - name: Install dependencies
         working-directory: ${{ inputs.working-directory }}
         run: |
-          pip install -e ".[${{ inputs.install-extras }}]" --quiet
+          if [ -n "${{ inputs.install-command }}" ]; then
+            ${{ inputs.install-command }}
+          else
+            pip install -e ".[${{ inputs.install-extras }}]" --quiet
+          fi
 
       - name: Lint (ruff)
         working-directory: ${{ inputs.working-directory }}
         run: |
-          pip install ruff --quiet
+          RUFF_SPEC="ruff"
+          if [ -n "${{ inputs.ruff-version }}" ]; then
+            RUFF_SPEC="ruff==${{ inputs.ruff-version }}"
+          fi
+          pip install "$RUFF_SPEC" --quiet
           ruff check .
           ruff format --check .
 
       - name: Run tests
+        if: ${{ inputs.run-tests }}
         working-directory: ${{ inputs.working-directory }}
         run: |
-          pytest ${{ inputs.test-path }} \
+          pytest ${{ inputs.test-path }} ${{ inputs.pytest-args }} \
             --cov=. \
             --cov-report=term-missing \
             --cov-report=xml:coverage.xml \
@@ -62,8 +98,8 @@ jobs:
             -v
 
       - name: Upload coverage
+        if: ${{ always() && inputs.run-tests }}
         uses: actions/upload-artifact@v4
-        if: always()
         with:
           name: python-coverage-${{ github.sha }}
           path: ${{ inputs.working-directory }}/coverage.xml
