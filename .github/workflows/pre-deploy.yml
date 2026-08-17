@@ -42,7 +42,7 @@ jobs:
   # ─────────────────────────────────────────────
   build:
     name: Docker Build Check
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -65,7 +65,7 @@ jobs:
   # ─────────────────────────────────────────────
   dependency-audit:
     name: Dependency Audit (${{ inputs.audit-type }})
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
     if: inputs.audit-type != 'none'
 
     steps:
@@ -103,7 +103,7 @@ jobs:
   # ─────────────────────────────────────────────
   migration-dry-run:
     name: Migration Dry-Run
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
     if: inputs.migration-command != ''
 
     steps:

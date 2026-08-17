@@ -25,7 +25,7 @@ on:
 
 jobs:
   ai-review:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
     permissions:
       pull-requests: write
 
