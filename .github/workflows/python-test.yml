@@ -66,14 +66,15 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
         run: ${{ inputs.pre-install }}
 
-      - name: Install dependencies
+      - name: Install dependencies (custom command)
+        if: ${{ inputs.install-command != '' }}
         working-directory: ${{ inputs.working-directory }}
-        run: |
-          if [ -n "${{ inputs.install-command }}" ]; then
-            ${{ inputs.install-command }}
-          else
-            pip install -e ".[${{ inputs.install-extras }}]" --quiet
-          fi
+        run: ${{ inputs.install-command }}
+
+      - name: Install dependencies
+        if: ${{ inputs.install-command == '' }}
+        working-directory: ${{ inputs.working-directory }}
+        run: pip install -e ".[${{ inputs.install-extras }}]" --quiet
 
       - name: Lint (ruff)
         working-directory: ${{ inputs.working-directory }}
