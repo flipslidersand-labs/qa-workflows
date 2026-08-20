@@ -41,8 +41,18 @@ on:
         description: false なら pytest をスキップし lint/format のみのゲートにする
         type: boolean
         default: true
+      run-lint:
+        description: false なら ruff lint/format チェックをスキップする
+        type: boolean
+        default: true
       ruff-version:
         description: ruff の固定バージョン（空なら最新。CI の ruff 更新差分を避けたい時に固定）
+        type: string
+        default: ""
+      runner:
+        description: >-
+          実行 runner。未指定なら vars.GATE_RUNNER →
+          ubuntu-latest の順に自動選択（caller は通常渡さない）
         type: string
         default: ""
     secrets:
@@ -51,7 +61,7 @@ on:
 
 jobs:
   test:
-    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
+    runs-on: ${{ inputs.runner != '' && inputs.runner || vars.GATE_RUNNER || 'ubuntu-latest' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -77,6 +87,7 @@ jobs:
         run: pip install -e ".[${{ inputs.install-extras }}]" --quiet
 
       - name: Lint (ruff)
+        if: ${{ inputs.run-lint }}
         working-directory: ${{ inputs.working-directory }}
         run: |
           RUFF_SPEC="ruff"
