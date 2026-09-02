@@ -45,6 +45,10 @@ on:
         description: cargo clippy を実行するか
         type: boolean
         default: true
+      run-tests:
+        description: テストを実行するか（false なら fmt/clippy/build のみ）
+        type: boolean
+        default: true
       run-coverage:
         description: cargo-llvm-cov で coverage を計測・gate するか（false なら cargo test のみ）
         type: boolean
@@ -91,11 +95,11 @@ jobs:
         run: cargo build ${{ inputs.test-args }}
 
       - name: Install cargo-llvm-cov
-        if: ${{ inputs.run-coverage }}
+        if: ${{ inputs.run-tests && inputs.run-coverage }}
         uses: taiki-e/install-action@cargo-llvm-cov
 
       - name: Test + coverage
-        if: ${{ inputs.run-coverage }}
+        if: ${{ inputs.run-tests && inputs.run-coverage }}
         working-directory: ${{ inputs.working-directory }}
         run: |
           cargo llvm-cov ${{ inputs.test-args }} \
@@ -103,12 +107,12 @@ jobs:
             --fail-under-lines ${{ inputs.coverage-threshold }}
 
       - name: Test (no coverage)
-        if: ${{ ! inputs.run-coverage }}
+        if: ${{ inputs.run-tests && ! inputs.run-coverage }}
         working-directory: ${{ inputs.working-directory }}
         run: cargo test ${{ inputs.test-args }}
 
       - name: Upload coverage
-        if: ${{ always() && inputs.run-coverage }}
+        if: ${{ always() && inputs.run-tests && inputs.run-coverage }}
         uses: actions/upload-artifact@v4
         with:
           name: rust-coverage-${{ github.sha }}
