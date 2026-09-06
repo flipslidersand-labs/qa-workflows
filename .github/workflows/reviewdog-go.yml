@@ -1,0 +1,44 @@
+name: Reviewdog Go (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: lint 対象ディレクトリ
+        type: string
+        default: "."
+      go-version:
+        description: Go バージョン
+        type: string
+        default: "1.23"
+      fail-on-error:
+        description: >-
+          true なら lint エラーで CI を落とす。false（デフォルト）は
+          PR にインラインコメントを付けるだけで CI は落とさない
+          （Phase後半で true に切り替える運用を想定 #774）
+        type: boolean
+        default: false
+
+jobs:
+  reviewdog:
+    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ inputs.go-version }}
+          cache: true
+
+      - uses: reviewdog/action-golangci-lint@v2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          reporter: github-pr-review
+          filter_mode: added
+          fail_level: ${{ inputs.fail-on-error && 'error' || 'none' }}
+          workdir: ${{ inputs.working-directory }}
