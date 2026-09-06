@@ -63,6 +63,9 @@ jobs:
     # caller の with で vars を参照すると解決に失敗するため、runner 選択は
     # reusable 側で行う（inputs.runner → vars.GATE_RUNNER → ubuntu-latest）
     runs-on: ${{ inputs.runner != '' && inputs.runner || vars.GATE_RUNNER || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+      pull-requests: write
 
     steps:
       - uses: actions/checkout@v4
@@ -118,3 +121,39 @@ jobs:
           name: rust-coverage-${{ github.sha }}
           path: ${{ inputs.working-directory }}/lcov.info
           retention-days: 7
+
+      - name: PR coverage comment
+        if: ${{ always() && inputs.run-coverage && github.event_name == 'pull_request' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const lcov = path.join('${{ inputs.working-directory }}', 'lcov.info');
+            const MARKER = '<!-- qa-workflows-coverage-comment -->';
+            let body;
+            try {
+              const text = fs.readFileSync(lcov, 'utf8');
+              let lh = 0, lf = 0;
+              for (const line of text.split('\n')) {
+                if (line.startsWith('LH:')) lh += parseInt(line.slice(3), 10) || 0;
+                if (line.startsWith('LF:')) lf += parseInt(line.slice(3), 10) || 0;
+              }
+              if (lf === 0) throw new Error('lcov.info に LF レコードが無い');
+              const pct = ((lh / lf) * 100).toFixed(1);
+              const threshold = ${{ inputs.coverage-threshold }};
+              const status = Number(pct) >= threshold ? '✅' : '❌';
+              body = MARKER + '\n### 📊 Rust coverage: **' + pct + '%** ' + status +
+                '\n\n閾値: ' + threshold + '% | working-directory: `${{ inputs.working-directory }}`';
+            } catch (e) {
+              body = MARKER + '\n### 📊 Rust coverage\nlcov.info の読み込みに失敗しました: ' + e.message;
+            }
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body && c.body.includes(MARKER));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body });
+            }
