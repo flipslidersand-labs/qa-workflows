@@ -21,11 +21,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: reviewdog/action-ruff@v1
-        continue-on-error: true
+      - uses: actions/setup-python@v5
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          reporter: github-pr-review
-          filter_mode: added
-          fail_level: ${{ inputs.fail-on-error && 'error' || 'none' }}
-          workdir: ${{ inputs.working-directory }}
+          python-version: "3.12"
+
+      - name: Install ruff
+        run: pip install ruff --quiet
+
+      - uses: reviewdog/action-setup@v1
+        with:
+          reviewdog_version: latest
+
+      # reviewdog/action-ruff は存在しない（#774 実装時の誤り）。ruff は
+      # reviewdog 連携用の rdjson 出力形式をネイティブサポートしているため、
+      # reviewdog CLI に直接パイプする
+      - name: ruff (reviewdog)
+        continue-on-error: true
+        working-directory: ${{ inputs.working-directory }}
+        env:
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ruff check --output-format=rdjson . | reviewdog \
+            -f=rdjson \
+            -name=ruff \
+            -reporter=github-pr-review \
+            -filter-mode=added \
+            -fail-level=${{ inputs.fail-on-error && 'error' || 'none' }}
