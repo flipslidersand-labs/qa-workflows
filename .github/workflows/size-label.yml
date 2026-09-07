@@ -1,0 +1,27 @@
+name: Size Label (Reusable)
+
+# 呼び出し側で必ず job-level permissions (pull-requests: write) を
+# 宣言すること。このファイル自身は permissions を要求しない
+# （#772/#774 インシデントの教訓。詳細は stale-pr.yml のコメント参照）
+#
+# actions/size-label は実在しない（Issue #776 本文の誤り）。実在する
+# pascalgn/size-label-action を使う
+
+on:
+  workflow_call:
+    inputs:
+      sizes:
+        description: サイズ閾値のJSON文字列
+        type: string
+        default: '{"0":"XS","10":"S","30":"M","100":"L","500":"XL","1000":"XXL"}'
+
+
+jobs:
+  size-label:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: pascalgn/size-label-action@v0.5.7
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          sizes: ${{ inputs.sizes }}
