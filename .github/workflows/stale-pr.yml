@@ -1,0 +1,40 @@
+name: Stale PR (Reusable)
+
+# 呼び出し側で必ず job-level permissions (pull-requests: write, issues: write)
+# を宣言すること。このファイル自身は permissions を要求しない
+# （#772/#774 のインシデントで学んだ教訓: reusable workflow がここで
+# permissions を要求すると、呼び出し元が宣言していない場合に GitHub が
+# ワークフロー全体のスケジュールを拒否する）
+
+on:
+  workflow_call:
+    inputs:
+      days-before-stale:
+        description: 何日更新が無ければ stale ラベルを付けるか
+        type: number
+        default: 14
+      days-before-close:
+        description: stale 後、何日でクローズするか
+        type: number
+        default: 7
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v9
+        with:
+          days-before-pr-stale: ${{ inputs.days-before-stale }}
+          days-before-pr-close: ${{ inputs.days-before-close }}
+          stale-pr-label: stale
+          exempt-pr-labels: keep-alive
+          # Issue 側は対象外（このIssueはPR放棄率の削減が目的で、Issueの
+          # stale化は別の関心事のため、-1 で無効化する）
+          days-before-issue-stale: -1
+          days-before-issue-close: -1
+          stale-pr-message: >-
+            このPRは${{ inputs.days-before-stale }}日間更新がありません。
+            ${{ inputs.days-before-close }}日以内にアクションがなければクローズします。
+            続ける場合はコメントするか `keep-alive` ラベルを付けてください。
+          close-pr-message: >-
+            アクションが無いためクローズしました。再開する場合は再オープンしてください。
