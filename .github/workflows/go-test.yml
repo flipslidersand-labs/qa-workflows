@@ -43,10 +43,6 @@ jobs:
     # caller の with で vars を参照すると解決に失敗するため、runner 選択は
     # reusable 側で行う（inputs.runner → vars.GATE_RUNNER → ubuntu-latest）
     runs-on: ${{ inputs.runner != '' && inputs.runner || vars.GATE_RUNNER || 'ubuntu-latest' }}
-    permissions:
-      contents: read
-      pull-requests: write
-
     steps:
       - uses: actions/checkout@v4
 
@@ -97,6 +93,7 @@ jobs:
 
       - name: PR coverage comment
         if: ${{ always() && github.event_name == 'pull_request' }}
+        continue-on-error: true
         uses: actions/github-script@v7
         with:
           script: |

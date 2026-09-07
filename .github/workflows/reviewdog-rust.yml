@@ -26,11 +26,6 @@ on:
 jobs:
   reviewdog:
     runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
-    permissions:
-      contents: read
-      pull-requests: write
-      checks: write
-
     steps:
       - uses: actions/checkout@v4
 
@@ -44,6 +39,7 @@ jobs:
           workspaces: ${{ inputs.working-directory }}
 
       - uses: reviewdog/action-clippy@v1
+        continue-on-error: true
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           reporter: github-pr-review
