@@ -32,6 +32,21 @@ jobs:
 | `smoke-test.yml` | デプロイ後ヘルスチェック |
 | `coverage-report.yml` | カバレッジ集計 |
 | `eval-regression.yml` | RAG/LLM 評価回帰 |
+| `gitleaks.yml` | シークレット静的スキャン(gitleaks OSS CLI) |
+
+## gitleaks の使い方
+
+呼び出し側で `permissions: contents: read` を明記する（reusable workflow 側に
+job-level permissions を持たせて呼び出し元の permissions を上書きし、
+startup_failure を招いた過去の事故を避けるため）。
+
+```yaml
+jobs:
+  gitleaks:
+    permissions:
+      contents: read
+    uses: flipslidersand-labs/qa-workflows/.github/workflows/gitleaks.yml@main
+```
 
 ## runner 選択
 
