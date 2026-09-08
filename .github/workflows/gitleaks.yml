@@ -1,0 +1,47 @@
+name: Gitleaks Secrets Scan (Reusable)
+
+# シークレット/APIキーの誤コミットを検出する共通ジョブ。
+# gitleaks-action@v2 は Org リポで有料ライセンス(GITLEAKS_LICENSE)が必要なため、
+# OSS の gitleaks バイナリを直接実行する（ライセンス不要・機能はフル）。
+#
+# NOTE: 呼び出し側で `permissions: contents: read` を明記すること。
+# reusable workflow 側に job-level permissions を持たせると、呼び出し元の
+# permissions を上書きして意図しない startup_failure を招くケースがあるため、
+# ここでは permissions ブロックを持たない。
+
+on:
+  workflow_call:
+    inputs:
+      gitleaks-version:
+        description: gitleaks CLI のバージョン
+        type: string
+        default: "8.30.1"
+      fail-on-detect:
+        description: シークレット検出時にジョブを失敗させるか
+        type: boolean
+        default: true
+
+jobs:
+  gitleaks:
+    name: Secrets Scan (gitleaks)
+    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install & run gitleaks (OSS CLI)
+        env:
+          GITLEAKS_VERSION: ${{ inputs.gitleaks-version }}
+          FAIL_ON_DETECT: ${{ inputs.fail-on-detect }}
+        run: |
+          set -euo pipefail
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /tmp gitleaks
+          /tmp/gitleaks version
+
+          if [ "$FAIL_ON_DETECT" = "true" ]; then
+            /tmp/gitleaks dir . --redact -v --exit-code 1
+          else
+            /tmp/gitleaks dir . --redact -v --exit-code 1 || echo "::warning::gitleaks detected findings (fail-on-detect=false)"
+          fi
