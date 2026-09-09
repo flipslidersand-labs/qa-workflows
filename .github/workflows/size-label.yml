@@ -18,7 +18,7 @@ on:
 
 jobs:
   size-label:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: pascalgn/size-label-action@v0.5.7
         env:
