@@ -4,9 +4,9 @@ on:
   workflow_call:
     inputs:
       model:
-        description: 使用モデル
+        description: 使用モデル（Vertex AI Anthropic model garden 名。例 claude-haiku-4-5@20251001）
         type: string
-        default: "claude-haiku-4-5-20251001"
+        default: "claude-haiku-4-5@20251001"
       max-diff-lines:
         description: レビュー対象の最大 diff 行数
         type: number
@@ -19,9 +19,6 @@ on:
         description: レビュー除外パターン（カンマ区切り glob）
         type: string
         default: "*.lock,*.sum,*.pb.go,*_generated.go"
-    secrets:
-      ANTHROPIC_API_KEY:
-        required: true
 
 jobs:
   ai-review:
@@ -35,8 +32,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Vertex AI へ WIF 認証。WIF_PROVIDER 未設定なら skip（#25 までは
-      # 未使用でも non-blocking。dev-platform の gemini-review.yml と同じパターン）。
+      # Vertex AI へ WIF 認証。WIF_PROVIDER 未設定なら skip（ゲートはブロックしない。
+      # dev-platform の gemini-review.yml と同じパターン）。
       - name: Authenticate to Google Cloud (Vertex / WIF)
         if: vars.WIF_PROVIDER != ''
         uses: google-github-actions/auth@v3
@@ -76,17 +73,20 @@ jobs:
           fi
           echo "lines=$LINE_COUNT" >> "$GITHUB_OUTPUT"
 
-      - name: AI Review via Claude
+      - name: AI Review via Claude (Vertex AI)
         id: review
         if: steps.diff.outputs.lines != '0'
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           # diff / model はシェルに補間せず env 経由で渡す（注入・クォート破損対策）
           DIFF: ${{ steps.diff.outputs.diff }}
           MODEL: ${{ inputs.model }}
+          VERTEX_PROJECT: ${{ vars.VERTEX_PROJECT }}
+          VERTEX_REGION: ${{ vars.VERTEX_REGION }}
         run: |
           # payload を Python で組み立ててファイルに書き出す。
           # -d "$VAR" は $(...) / バックティックが再評価される危険があるため -d @file を使う。
+          # Vertex AI の rawPredict は Anthropic Messages API とほぼ同形式だが、
+          # model はURLパスで指定するためbody中は不要。anthropic_version は Vertex 固有の値。
           python3 <<'PY' > "$RUNNER_TEMP/payload.json"
           import json, os
           diff = os.environ["DIFF"]
@@ -103,15 +103,17 @@ jobs:
               "Diff:\n" + diff
           )
           json.dump({
-              "model": os.environ["MODEL"],
+              "anthropic_version": "vertex-2023-10-16",
               "max_tokens": 2048,
               "messages": [{"role": "user", "content": prompt}],
           }, __import__("sys").stdout)
           PY
 
-          RESPONSE=$(curl -s https://api.anthropic.com/v1/messages \
-            -H "x-api-key: $ANTHROPIC_API_KEY" \
-            -H "anthropic-version: 2023-06-01" \
+          ACCESS_TOKEN=$(gcloud auth print-access-token)
+          VERTEX_URL="https://${VERTEX_REGION}-aiplatform.googleapis.com/v1/projects/${VERTEX_PROJECT}/locations/${VERTEX_REGION}/publishers/anthropic/models/${MODEL}:rawPredict"
+
+          RESPONSE=$(curl -s "$VERTEX_URL" \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
             -H "content-type: application/json" \
             -d @"$RUNNER_TEMP/payload.json")
 
