@@ -39,9 +39,15 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
           MAX_DIFF_LINES: ${{ inputs.max-diff-lines }}
+          IGNORE_PATHS: ${{ inputs.ignore-paths }}
         run: |
+          PATHSPECS=(".")
+          IFS=',' read -ra PATTERNS <<< "$IGNORE_PATHS"
+          for p in "${PATTERNS[@]}"; do
+            [ -n "$p" ] && PATHSPECS+=(":!$p")
+          done
           DIFF=$(git diff "origin/${BASE_REF}...HEAD" \
-            -- ':!*.lock' ':!*.sum' ':!*.pb.go' ':!*_generated.go' \
+            -- "${PATHSPECS[@]}" \
             | head -n "$MAX_DIFF_LINES")
           {
             echo "diff<<DIFF_EOF"
