@@ -78,7 +78,7 @@ jobs:
           echo "Coverage: ${COVERAGE}%"
           echo "Threshold: ${{ inputs.coverage-threshold }}%"
           echo "pct=${COVERAGE}" >> "$GITHUB_OUTPUT"
-          if (( $(echo "$COVERAGE < ${{ inputs.coverage-threshold }}" | bc -l) )); then
+          if awk -v c="$COVERAGE" -v t="${{ inputs.coverage-threshold }}" 'BEGIN{exit !(c<t)}'; then
             echo "Coverage ${COVERAGE}% is below threshold ${{ inputs.coverage-threshold }}%"
             exit 1
           fi
