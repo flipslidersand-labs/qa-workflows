@@ -28,11 +28,25 @@ jobs:
     runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
     permissions:
       pull-requests: write
+      id-token: write # Vertex AI への WIF 認証用（#25 で実際に使用開始）
 
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      # Vertex AI へ WIF 認証。WIF_PROVIDER 未設定なら skip（#25 までは
+      # 未使用でも non-blocking。dev-platform の gemini-review.yml と同じパターン）。
+      - name: Authenticate to Google Cloud (Vertex / WIF)
+        if: vars.WIF_PROVIDER != ''
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.WIF_SA }}
+
+      - name: Set up gcloud
+        if: vars.WIF_PROVIDER != ''
+        uses: google-github-actions/setup-gcloud@v2
 
       - name: Get PR diff
         id: diff
