@@ -1,0 +1,93 @@
+name: Trivy Vulnerability Scan (Reusable)
+
+# fs（コードベース依存パッケージ）+ misconfig（IaC/Dockerfile設定ミス）を
+# CRITICAL/HIGH で CI ゲートする。scan-image=true の場合はビルド済みイメージも
+# 追加でスキャンする（イメージのビルド自体はこのワークフローの責務外 —
+# caller が事前にビルド/pull した image-ref を渡す）。
+#
+# secret スキャナは意図的に無効（scanners に含めない）。secret 検出は
+# gitleaks.yml が既に担っており、trivy 側でも有効にすると同じ種類の検出が
+# 二重化し Security タブのアラートがノイズ化するため。
+#
+# SBOM は出力しない。リリース成果物としての SBOM は syft/goreleaser の役割で、
+# このワークフローは PR/push 時の脆弱性ゲートという別の関心事のため。
+#
+# NOTE: SARIF アップロード（Code Scanning 連携）は security-events: write を
+# 要求する。reusable workflow 側に job-level permissions を持たせると、
+# 宣言していない呼び出し元で workflow 全体が startup_failure になる
+# （qa-workflows#772/#774 インシデント、PR#11 参照）。そのためこのステップは
+# continue-on-error: true の soft-fail にしてあり、Code Scanning 連携を使いたい
+# caller だけが自分の呼び出しジョブに `permissions: {security-events: write}`
+# を明示して opt-in する。
+
+on:
+  workflow_call:
+    inputs:
+      severity:
+        description: CI失敗の対象とする重大度（カンマ区切り）
+        type: string
+        default: "CRITICAL,HIGH"
+      scan-image:
+        description: ビルド済みコンテナイメージもスキャンするか
+        type: boolean
+        default: false
+      image-ref:
+        description: scan-image=true のとき対象とするイメージ参照（例 myapp:latest）。事前に build/pull されている必要がある
+        type: string
+        default: ""
+      working-directory:
+        description: fs/misconfig スキャン対象ディレクトリ
+        type: string
+        default: "."
+
+jobs:
+  trivy-fs:
+    name: Trivy (fs + misconfig)
+    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Trivy fs/misconfig scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: ${{ inputs.working-directory }}
+          scanners: vuln,misconfig
+          severity: ${{ inputs.severity }}
+          exit-code: "1"
+          format: sarif
+          output: trivy-fs-results.sarif
+
+      - name: Upload SARIF (fs)
+        if: always()
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-fs-results.sarif
+          category: trivy-fs
+
+  trivy-image:
+    name: Trivy (image)
+    if: inputs.scan-image
+    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Trivy image scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: image
+          image-ref: ${{ inputs.image-ref }}
+          scanners: vuln
+          severity: ${{ inputs.severity }}
+          exit-code: "1"
+          format: sarif
+          output: trivy-image-results.sarif
+
+      - name: Upload SARIF (image)
+        if: always()
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-image-results.sarif
+          category: trivy-image

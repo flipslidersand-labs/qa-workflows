@@ -33,6 +33,7 @@ jobs:
 | `coverage-report.yml` | カバレッジ集計 |
 | `eval-regression.yml` | RAG/LLM 評価回帰 |
 | `gitleaks.yml` | シークレット静的スキャン(gitleaks OSS CLI) |
+| `trivy-scan.yml` | 脆弱性/設定ミススキャン(trivy) + Code Scanning SARIF連携 |
 
 ## gitleaks の使い方
 
@@ -46,6 +47,28 @@ jobs:
     permissions:
       contents: read
     uses: flipslidersand-labs/qa-workflows/.github/workflows/gitleaks.yml@main
+```
+
+## trivy-scan の使い方
+
+`pre-deploy.yml` の `audit-type: trivy` は build 済みイメージの軽量な fs スキャン（table出力のみ）。
+`trivy-scan.yml` はそれとは別に、misconfig 検出と GitHub Security タブへの SARIF 連携、
+および任意のイメージスキャンを行う独立ワークフロー。secret はスキャンしない（`gitleaks.yml` に一任）。
+
+SARIF アップロード（Code Scanning 連携）を機能させたい場合、呼び出し側で
+`permissions: security-events: write` を明示する（未宣言でも fs/misconfig ゲート自体は動作し、
+SARIF アップロードのみ soft-fail する）。
+
+```yaml
+jobs:
+  trivy:
+    permissions:
+      security-events: write
+    uses: flipslidersand-labs/qa-workflows/.github/workflows/trivy-scan.yml@main
+    with:
+      severity: "CRITICAL,HIGH"
+      scan-image: true
+      image-ref: "myapp:${{ github.sha }}"
 ```
 
 ## runner 選択
