@@ -19,6 +19,11 @@ on:
         description: "Override k6 test duration (e.g. '60s')"
         type: string
         default: ""
+    secrets:
+      # qa-platform は private リポのため、caller のデフォルト GITHUB_TOKEN
+      # ではチェックアウトできない。read アクセス権を持つ PAT を渡す。
+      QA_PLATFORM_TOKEN:
+        required: true
 
 jobs:
   api-e2e:
@@ -31,6 +36,7 @@ jobs:
         with:
           repository: flipslidersand-labs/qa-platform
           path: qa-platform
+          token: ${{ secrets.QA_PLATFORM_TOKEN }}
 
       - name: Start service
         run: |
