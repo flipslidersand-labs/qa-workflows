@@ -35,6 +35,20 @@ jobs:
 | `gitleaks.yml` | シークレット静的スキャン(gitleaks OSS CLI) |
 | `trivy-scan.yml` | 脆弱性/設定ミススキャン(trivy) + Code Scanning SARIF連携 |
 
+## api-e2e の使い方
+
+`qa-platform`（k6 シナリオの取得元）は private リポのため、caller のデフォルト
+`GITHUB_TOKEN` ではチェックアウトできない。qa-platform への read アクセス権を持つ
+PAT を `QA_PLATFORM_TOKEN` として渡す。
+
+```yaml
+jobs:
+  api-e2e:
+    uses: flipslidersand-labs/qa-workflows/.github/workflows/api-e2e.yml@main
+    secrets:
+      QA_PLATFORM_TOKEN: ${{ secrets.QA_PLATFORM_TOKEN }}
+```
+
 ## gitleaks の使い方
 
 呼び出し側で `permissions: contents: read` を明記する（reusable workflow 側に
