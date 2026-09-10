@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       service-url:
-        description: ヘルスチェック対象のベース URL（例: https://api.example.com）
+        description: "ヘルスチェック対象のベース URL（例: https://api.example.com）"
         type: string
         required: true
       health-path:
