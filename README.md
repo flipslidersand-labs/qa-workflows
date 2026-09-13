@@ -34,6 +34,8 @@ jobs:
 | `eval-regression.yml` | RAG/LLM 評価回帰 |
 | `gitleaks.yml` | シークレット静的スキャン(gitleaks OSS CLI) |
 | `trivy-scan.yml` | 脆弱性/設定ミススキャン(trivy) + Code Scanning SARIF連携 |
+| `dependabot-auto-merge.yml` | Dependabot PRのtriage(patch即マージ/minor待機ラベル/major・security手動レビュー) |
+| `dependabot-auto-merge-minor.yml` | minor待機ラベルのPRを24h経過後にauto-merge昇格(cron) |
 
 ## api-e2e の使い方
 
@@ -84,6 +86,44 @@ jobs:
       scan-image: true
       image-ref: "myapp:${{ github.sha }}"
 ```
+
+## dependabot-auto-merge の使い方
+
+PRをマージするため `contents: write` + `pull-requests: write` が必須。gitleaksと同様の理由で
+reusable workflow 側に job-level permissions を持たせていないため、**caller が明示的に
+両方の permissions を宣言すること**（未宣言のまま呼ぶと権限不足でマージ操作が失敗する）。
+
+```yaml
+# .github/workflows/dependabot-auto-merge.yml (caller)
+name: Dependabot Auto-merge
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  triage:
+    if: github.actor == 'dependabot[bot]'
+    uses: flipslidersand-labs/qa-workflows/.github/workflows/dependabot-auto-merge.yml@main
+```
+
+```yaml
+# .github/workflows/dependabot-auto-merge-minor.yml (caller)
+name: Dependabot Auto-merge (minor, 24h wait)
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch: {}
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  promote:
+    uses: flipslidersand-labs/qa-workflows/.github/workflows/dependabot-auto-merge-minor.yml@main
+```
+
+各リポの `.github/dependabot.yml` 自体(package-ecosystem設定)はこれまで通り個別管理。
 
 ## runner 選択
 

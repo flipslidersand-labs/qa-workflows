@@ -1,0 +1,62 @@
+name: Dependabot Auto-merge Minor Promote (Reusable)
+
+# dependabot-auto-merge.yml が付けた `dependabot/minor-pending` ラベルのPRを
+# 定期的に走査し、作成から24時間経過していれば auto-merge を有効化する。
+#
+# 重要: job-level permissions は宣言しない(理由は dependabot-auto-merge.yml
+# 冒頭コメント参照)。caller は自分の workflow で
+#   permissions:
+#     contents: write
+#     pull-requests: write
+# を明示すること。
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        description: >-
+          実行 runner。未指定なら vars.GATE_RUNNER →
+          ubuntu-latest の順に自動選択（caller は通常渡さない）
+        type: string
+        default: ""
+
+# --- caller側の例 ---
+# name: Dependabot Auto-merge (minor, 24h wait)
+# on:
+#   schedule:
+#     - cron: "0 * * * *"
+#   workflow_dispatch: {}
+# permissions:
+#   contents: write
+#   pull-requests: write
+# jobs:
+#   promote:
+#     uses: flipslidersand-labs/qa-workflows/.github/workflows/dependabot-auto-merge-minor.yml@main
+
+jobs:
+  promote:
+    runs-on: ${{ inputs.runner != '' && inputs.runner || vars.GATE_RUNNER || 'ubuntu-latest' }}
+    steps:
+      - name: Promote minor PRs past 24h wait
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          now_epoch=$(date -u +%s)
+
+          gh pr list --repo "$GITHUB_REPOSITORY" --state open \
+            --label "dependabot/minor-pending" \
+            --json number,createdAt,url \
+            --jq '.[] | "\(.number)\t\(.createdAt)\t\(.url)"' |
+          while IFS=$'\t' read -r number created_at url; do
+            [ -z "$number" ] && continue
+            created_epoch=$(date -u -d "$created_at" +%s)
+            age_h=$(( (now_epoch - created_epoch) / 3600 ))
+            if [ "$age_h" -ge 24 ]; then
+              echo "PR #$number: ${age_h}h経過 → auto-merge有効化"
+              gh pr merge --auto --squash "$url"
+              gh pr edit "$url" --remove-label "dependabot/minor-pending" --add-label "dependabot/minor-promoted"
+            else
+              echo "PR #$number: ${age_h}h経過（24h未満のためスキップ）"
+            fi
+          done
