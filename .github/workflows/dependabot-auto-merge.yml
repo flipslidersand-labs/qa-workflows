@@ -48,14 +48,16 @@ jobs:
       - name: Ensure labels exist
         env:
           GH_TOKEN: ${{ github.token }}
+        # checkout 無しで実行するため、gh がリポを推定できない（fatal: not a git repository）。
+        # --repo を明示する（#41）
         run: |
-          gh label create "dependabot/security-review" --color D93F0B \
+          gh label create "dependabot/security-review" --repo "$GITHUB_REPOSITORY" --color D93F0B \
             --description "セキュリティアドバイザリ付き更新。手動レビュー必須" --force
-          gh label create "dependabot/minor-pending" --color FBCA04 \
+          gh label create "dependabot/minor-pending" --repo "$GITHUB_REPOSITORY" --color FBCA04 \
             --description "minor更新。CI green後24h待機中" --force
-          gh label create "dependabot/minor-promoted" --color 0E8A16 \
+          gh label create "dependabot/minor-promoted" --repo "$GITHUB_REPOSITORY" --color 0E8A16 \
             --description "minor更新。24h経過しauto-merge有効化済み" --force
-          gh label create "dependabot/major" --color B60205 \
+          gh label create "dependabot/major" --repo "$GITHUB_REPOSITORY" --color B60205 \
             --description "major更新。auto-merge対象外・手動レビュー必須" --force
 
       - name: Fetch Dependabot metadata
