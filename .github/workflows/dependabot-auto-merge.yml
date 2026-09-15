@@ -1,0 +1,95 @@
+name: Dependabot Auto-merge Triage (Reusable)
+
+# ADR#05(dev-platform)の実装をreusable化したもの。
+# - patch: CI green を条件に即時 auto-merge を有効化する
+# - minor: `dependabot/minor-pending` ラベルを付け、24h待機後に
+#   dependabot-auto-merge-minor.yml が昇格させる
+# - major: `dependabot/major` ラベルを付けるのみ。auto-mergeしない(手動レビュー)
+# - セキュリティアドバイザリ付き(Dependabot security update)は
+#   区分に関係なく auto-merge しない(手動レビュー最優先)
+#
+# 重要: このファイルは job-level permissions を宣言しない。
+# reusable workflow に permissions を書くと、caller が独自の permissions を
+# 宣言しておらず org default が read の場合に workflow 全体が startup_failure に
+# なる事故が起きたため(incident: qa-workflows#772, 2026-09-06)。
+# caller は必ず自分の workflow 側で
+#   permissions:
+#     contents: write
+#     pull-requests: write
+# を明示的に宣言すること(下記 caller 例参照)。
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        description: >-
+          実行 runner。未指定なら vars.GATE_RUNNER →
+          ubuntu-latest の順に自動選択（caller は通常渡さない）
+        type: string
+        default: ""
+
+# --- caller側の例 ---
+# name: Dependabot Auto-merge
+# on:
+#   pull_request:
+#     types: [opened, synchronize, reopened]
+# permissions:
+#   contents: write
+#   pull-requests: write
+# jobs:
+#   triage:
+#     if: github.actor == 'dependabot[bot]'
+#     uses: flipslidersand-labs/qa-workflows/.github/workflows/dependabot-auto-merge.yml@main
+
+jobs:
+  triage:
+    runs-on: ${{ inputs.runner != '' && inputs.runner || vars.GATE_RUNNER || 'ubuntu-latest' }}
+    steps:
+      - name: Ensure labels exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # checkout 無しで実行するため、gh がリポを推定できない（fatal: not a git repository）。
+        # --repo を明示する（#41）
+        run: |
+          gh label create "dependabot/security-review" --repo "$GITHUB_REPOSITORY" --color D93F0B \
+            --description "セキュリティアドバイザリ付き更新。手動レビュー必須" --force
+          gh label create "dependabot/minor-pending" --repo "$GITHUB_REPOSITORY" --color FBCA04 \
+            --description "minor更新。CI green後24h待機中" --force
+          gh label create "dependabot/minor-promoted" --repo "$GITHUB_REPOSITORY" --color 0E8A16 \
+            --description "minor更新。24h経過しauto-merge有効化済み" --force
+          gh label create "dependabot/major" --repo "$GITHUB_REPOSITORY" --color B60205 \
+            --description "major更新。auto-merge対象外・手動レビュー必須" --force
+
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ github.token }}
+
+      - name: Security advisory → 手動レビュー
+        if: ${{ steps.metadata.outputs.alert-state == 'AUTO_DISMISSED' || steps.metadata.outputs.dependency-group != '' && contains(steps.metadata.outputs.dependency-group, 'security') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr edit "${{ github.event.pull_request.html_url }}" --add-label "dependabot/security-review"
+
+      - name: patch → 即時auto-merge
+        if: ${{ steps.metadata.outputs.update-type == 'version-update:semver-patch' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr merge --auto --squash "${{ github.event.pull_request.html_url }}"
+
+      - name: minor → 24h待機ラベル
+        if: ${{ steps.metadata.outputs.update-type == 'version-update:semver-minor' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr edit "${{ github.event.pull_request.html_url }}" --add-label "dependabot/minor-pending"
+
+      - name: major → 手動レビューラベル
+        if: ${{ steps.metadata.outputs.update-type == 'version-update:semver-major' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr edit "${{ github.event.pull_request.html_url }}" --add-label "dependabot/major"
