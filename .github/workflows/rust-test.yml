@@ -37,6 +37,14 @@ on:
         description: 事前に apt-get install する追加パッケージ（空でスキップ）
         type: string
         default: ""
+      rust-targets:
+        description: 追加インストールする rustup target（カンマ区切り。例 "wasm32-wasip1"。空でスキップ）
+        type: string
+        default: ""
+      pre-install:
+        description: 依存導入後・テスト前に実行する任意コマンド（例 "pip install pytest"。空でスキップ）
+        type: string
+        default: ""
       run-fmt:
         description: cargo fmt --check を実行するか
         type: boolean
@@ -70,6 +78,7 @@ jobs:
         with:
           toolchain: ${{ inputs.rust-version }}
           components: rustfmt, clippy, llvm-tools-preview
+          targets: ${{ inputs.rust-targets }}
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -78,6 +87,11 @@ jobs:
       - name: Install system deps
         if: ${{ inputs.system-deps != '' }}
         run: sudo apt-get update && sudo apt-get install -y ${{ inputs.system-deps }}
+
+      - name: Pre-install
+        if: ${{ inputs.pre-install != '' }}
+        working-directory: ${{ inputs.working-directory }}
+        run: ${{ inputs.pre-install }}
 
       - name: cargo fmt --check
         if: ${{ inputs.run-fmt }}
