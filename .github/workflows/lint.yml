@@ -1,0 +1,31 @@
+name: lint
+
+# qa-workflows 自身の workflow を actionlint で検査する（#47）。
+# reusable workflow は workflow_call のみで単体では実行されないため、
+# YAML 構文・式の誤りが caller リポで初めて発覚するのを防ぐ（#35 / #40）。
+# shellcheck 指摘（info レベル中心）は既存分が残っているため、当面は無効化して
+# 構文・式チェックのみを gate にする。
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  actionlint:
+    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
+    env:
+      ACTIONLINT_VERSION: "1.7.12"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install actionlint
+        run: |
+          bash <(curl -fsSL "https://raw.githubusercontent.com/rhysd/actionlint/v${ACTIONLINT_VERSION}/scripts/download-actionlint.bash") "$ACTIONLINT_VERSION" "$RUNNER_TEMP"
+
+      - name: Run actionlint
+        run: |
+          "$RUNNER_TEMP/actionlint" -color -shellcheck=
