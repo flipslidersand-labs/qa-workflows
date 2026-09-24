@@ -1,0 +1,3 @@
+# ローカル worktree（session-start / 並行セッション用）
+.claude/
+.wt/
