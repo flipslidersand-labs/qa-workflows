@@ -36,6 +36,34 @@ on:
         description: 最後に確認した HTTP ステータスコード
         value: ${{ jobs.smoke.outputs.status_code }}
 
+  # このリポ単体で動作確認するための手動実行（#40）。inputs は workflow_call と同一。
+  workflow_dispatch:
+    inputs:
+      service-url:
+        description: "ヘルスチェック対象のベース URL（例: https://api.example.com）"
+        type: string
+        required: true
+      health-path:
+        description: ヘルスチェック エンドポイント
+        type: string
+        default: "/health"
+      timeout:
+        description: タイムアウト（秒）— この時間内に 200 が返らなければ失敗
+        type: number
+        default: 60
+      retry-interval:
+        description: リトライ間隔（秒）
+        type: number
+        default: 5
+      expected-status:
+        description: 期待する HTTP ステータスコード
+        type: number
+        default: 200
+      extra-checks:
+        description: 追加チェック URL（改行区切り PATH:EXPECTED_STATUS）
+        type: string
+        default: ""
+
 jobs:
   smoke:
     name: Smoke Test
