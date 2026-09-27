@@ -22,7 +22,7 @@ jobs:
   stale:
     runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
     steps:
-      - uses: actions/stale@v9
+      - uses: actions/stale@v11
         with:
           days-before-pr-stale: ${{ inputs.days-before-stale }}
           days-before-pr-close: ${{ inputs.days-before-close }}
