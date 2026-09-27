@@ -89,25 +89,25 @@ jobs:
           elapsed=0
           status_code=0
 
-          while [ $elapsed -lt $TIMEOUT ]; do
+          while [ "$elapsed" -lt "$TIMEOUT" ]; do
             status_code=$(curl -s -o /dev/null -w "%{http_code}" \
-              --max-time 10 --connect-timeout 5 "$URL" 2>/dev/null || echo "000")
+              --max-time 10 --connect-timeout 5 "$URL" 2>/dev/null || true)
 
             echo "  [${elapsed}s] HTTP ${status_code}"
 
             if [ "$status_code" = "$EXPECTED_STATUS" ]; then
-              echo "status_code=$status_code" >> $GITHUB_OUTPUT
-              echo "rollback=false" >> $GITHUB_OUTPUT
+              echo "status_code=$status_code" >> "$GITHUB_OUTPUT"
+              echo "rollback=false" >> "$GITHUB_OUTPUT"
               echo "✅ Health check passed (HTTP ${status_code})"
               exit 0
             fi
 
-            sleep $RETRY_INTERVAL
+            sleep "$RETRY_INTERVAL"
             elapsed=$((elapsed + RETRY_INTERVAL))
           done
 
-          echo "status_code=$status_code" >> $GITHUB_OUTPUT
-          echo "rollback=true" >> $GITHUB_OUTPUT
+          echo "status_code=$status_code" >> "$GITHUB_OUTPUT"
+          echo "rollback=true" >> "$GITHUB_OUTPUT"
           echo "❌ Health check failed after ${TIMEOUT}s (last HTTP ${status_code})"
           exit 1
 
@@ -123,7 +123,7 @@ jobs:
             path="${line%%:*}"
             expected="${line##*:}"
             url="${BASE_URL}${path}"
-            status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$url" 2>/dev/null || echo "000")
+            status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$url" 2>/dev/null || true)
             if [ "$status" = "$expected" ]; then
               echo "  ✅ $path → HTTP $status"
             else
@@ -132,7 +132,7 @@ jobs:
             fi
           done <<< "$CHECKS"
 
-          if [ $failed -gt 0 ]; then
+          if [ "$failed" -gt 0 ]; then
             echo "::error::${failed} extra endpoint(s) failed"
             exit 1
           fi
@@ -142,4 +142,4 @@ jobs:
         run: |
           echo "::error::Smoke test failed — rollback required"
           echo "::notice::Set rollback=true in downstream jobs to trigger rollback"
-          echo "rollback=true" >> $GITHUB_OUTPUT
+          echo "rollback=true" >> "$GITHUB_OUTPUT"
