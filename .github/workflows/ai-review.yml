@@ -43,7 +43,7 @@ jobs:
 
       - name: Set up gcloud
         if: vars.WIF_PROVIDER != ''
-        uses: google-github-actions/setup-gcloud@v2
+        uses: google-github-actions/setup-gcloud@v3
 
       - name: Get PR diff
         id: diff
