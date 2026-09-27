@@ -124,6 +124,27 @@ jobs:
 
 各リポの `.github/dependabot.yml` 自体(package-ecosystem設定)はこれまで通り個別管理。
 
+前提と注意:
+
+- `gh pr merge --auto` を使うため、caller リポで **Settings → Allow auto-merge** を有効にし、
+  「CI green を条件に」するには branch protection の required checks を設定しておくこと
+  （required checks が無いと auto-merge は即時マージになる）。
+- **セキュリティ更新の除外には `alert-token` secret が必要**。fetch-metadata の `alert-lookup` は
+  `github.token` では動かないため、`Dependabot alerts: Read only` 権限の fine-grained PAT か
+  App トークンを渡す。未指定の場合、セキュリティ更新も通常の patch/minor と同じく自動処理される
+  （dependency-group 名に `security` を含むものだけは除外される）。
+  Dependabot が起動した run からは **Dependabot secrets** しか参照できないので、
+  Actions secrets ではなく Dependabot secrets に登録すること。
+
+  ```yaml
+  jobs:
+    triage:
+      if: github.actor == 'dependabot[bot]'
+      uses: flipslidersand-labs/qa-workflows/.github/workflows/dependabot-auto-merge.yml@main
+      secrets:
+        alert-token: ${{ secrets.DEPENDABOT_ALERT_TOKEN }}
+  ```
+
 ## runner 選択
 
 `go-test` / `python-test` は runner input 未指定なら `vars.GATE_RUNNER` → `ubuntu-latest` の順に自動採用。
