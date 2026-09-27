@@ -62,9 +62,12 @@ jobs:
       - name: Post PR comment
         if: steps.compare.outputs.result != ''
         uses: actions/github-script@v7
+        env:
+          # compare 結果をシェルに補間せず env 経由で渡す（注入・クォート破損対策）
+          COMPARE_RESULT: ${{ steps.compare.outputs.result }}
         with:
           script: |
-            const body = `${{ steps.compare.outputs.result }}`
+            const body = process.env.COMPARE_RESULT
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
