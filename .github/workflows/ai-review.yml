@@ -28,7 +28,7 @@ jobs:
       id-token: write # Vertex AI への WIF 認証用（#25 で実際に使用開始）
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 

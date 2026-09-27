@@ -63,7 +63,7 @@ jobs:
   test:
     runs-on: ${{ inputs.runner != '' && inputs.runner || vars.GATE_RUNNER || 'ubuntu-latest' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v5
         with:

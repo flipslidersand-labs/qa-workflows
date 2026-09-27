@@ -44,7 +44,7 @@ jobs:
     # reusable 側で行う（inputs.runner → vars.GATE_RUNNER → ubuntu-latest）
     runs-on: ${{ inputs.runner != '' && inputs.runner || vars.GATE_RUNNER || 'ubuntu-latest' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-go@v7
         with:
