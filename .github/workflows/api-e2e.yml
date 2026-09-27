@@ -29,10 +29,10 @@ jobs:
   api-e2e:
     runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Checkout qa-platform
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: flipslidersand-labs/qa-platform
           path: qa-platform

@@ -44,7 +44,7 @@ jobs:
     name: Docker Build Check
     runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -69,7 +69,7 @@ jobs:
     if: inputs.audit-type != 'none'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Trivy scan (filesystem)
         if: inputs.audit-type == 'trivy'
@@ -107,7 +107,7 @@ jobs:
     if: inputs.migration-command != ''
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Run migration dry-run
         working-directory: ${{ inputs.working-directory }}

@@ -45,7 +45,7 @@ jobs:
     name: Trivy (fs + misconfig)
     runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Trivy fs/misconfig scan
         uses: aquasecurity/trivy-action@0.28.0
@@ -71,7 +71,7 @@ jobs:
     if: inputs.scan-image
     runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Trivy image scan
         uses: aquasecurity/trivy-action@0.28.0
