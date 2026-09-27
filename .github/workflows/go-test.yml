@@ -51,6 +51,15 @@ jobs:
           go-version: ${{ inputs.go-version }}
           cache: true
 
+      # -race は cgo 必須。素の actions-runner イメージ(arc-dev-nodee 等)には gcc が無く
+      # exit 2 で即失敗するため、必要な時だけ C ツールチェーンを補う（qa-workflows#43）
+      - name: Ensure C toolchain for -race
+        if: ${{ contains(inputs.test-flags, '-race') }}
+        run: |
+          if ! command -v gcc >/dev/null 2>&1; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq build-essential
+          fi
+
       - name: go vet
         if: ${{ inputs.run-vet }}
         working-directory: ${{ inputs.working-directory }}
@@ -63,6 +72,8 @@ jobs:
 
       - name: Run tests
         working-directory: ${{ inputs.working-directory }}
+        env:
+          CGO_ENABLED: ${{ contains(inputs.test-flags, '-race') && '1' || '' }}
         run: |
           go test ${{ inputs.test-flags }} \
             -coverprofile=coverage.out \
