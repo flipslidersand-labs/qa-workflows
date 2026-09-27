@@ -30,7 +30,6 @@ jobs:
 | `ai-review.yml` | Claude AI レビュー |
 | `pre-deploy.yml` | Docker build + 脆弱性スキャン + migration dry-run |
 | `smoke-test.yml` | デプロイ後ヘルスチェック |
-| `coverage-report.yml` | カバレッジ集計 |
 | `eval-regression.yml` | RAG/LLM 評価回帰 |
 | `gitleaks.yml` | シークレット静的スキャン(gitleaks OSS CLI) |
 | `trivy-scan.yml` | 脆弱性/設定ミススキャン(trivy) + Code Scanning SARIF連携 |

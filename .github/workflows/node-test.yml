@@ -74,7 +74,12 @@ jobs:
 
       - name: Enable corepack (pnpm/yarn)
         if: ${{ inputs.package-manager != 'npm' }}
-        run: corepack enable
+        # self-hosted runner では ~/.cache/node/corepack が別ユーザー所有で EACCES になることが
+        # あるため、corepack のキャッシュをジョブ専用の RUNNER_TEMP に逃がす（#44）
+        run: |
+          echo "COREPACK_HOME=$RUNNER_TEMP/corepack" >> "$GITHUB_ENV"
+          export COREPACK_HOME="$RUNNER_TEMP/corepack"
+          corepack enable
 
       - name: Install dependencies
         env:
