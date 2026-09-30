@@ -68,7 +68,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ inputs.python-version }}
-          cache: pip
+          # self-hosted(ARC) は ~/.cache/pip が NFS 共有キャッシュのため GitHub cache は冗長。
+          # 有効だと ~5GB を毎ジョブ restore/save し 1 ジョブ数十分 runner を占有する (#59)
+          cache: ${{ runner.environment == 'github-hosted' && 'pip' || '' }}
 
       - name: Pre-install
         if: ${{ inputs.pre-install != '' }}
