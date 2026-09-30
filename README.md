@@ -17,7 +17,7 @@ jobs:
       coverage-threshold: 60
 ```
 
-各 workflow の input 仕様は qa-platform の `docs/reusable-workflows.md` を参照。
+各 workflow の input 仕様は [docs/reusable-workflows.md](docs/reusable-workflows.md) を参照。
 
 ## 提供 workflow
 
