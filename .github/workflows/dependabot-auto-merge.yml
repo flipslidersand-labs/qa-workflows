@@ -70,7 +70,7 @@ jobs:
 
       - name: Fetch Dependabot metadata
         id: metadata
-        uses: dependabot/fetch-metadata@v2
+        uses: dependabot/fetch-metadata@v3
         with:
           # alert-lookup(ghsa-id 等の取得)は PAT / App トークン必須。alert-token 未指定時は無効
           alert-lookup: ${{ secrets.alert-token != '' }}
