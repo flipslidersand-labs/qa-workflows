@@ -65,7 +65,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ inputs.node-version }}
           # 自動 pm キャッシュは pm 実行ファイルを要求し、corepack 有効化前だと
