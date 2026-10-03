@@ -149,3 +149,18 @@ jobs:
 
 `go-test` / `python-test` は runner input 未指定なら `vars.GATE_RUNNER` → `ubuntu-latest` の順に自動採用。
 public リポは GitHub-hosted が無料のため通常 `ubuntu-latest`（`runner: ubuntu-latest` 明示 or GATE_RUNNER 未設定）。
+
+## 展開状況の監査（`scripts/qa-workflows-audit.mjs`）
+
+org（`flipslidersand` / `flipslidersand-labs`）の全リポで、本リポの reusable workflow が導入済みかを監査する。
+追跡 issue は [#37](https://github.com/flipslidersand-labs/qa-workflows/issues/37)。要 Node.js と、実行者の `gh` 認証。
+
+```bash
+node scripts/qa-workflows-audit.mjs                          # レポートのみ（dry-run）。全リポで約4〜5分
+node scripts/qa-workflows-audit.mjs --repo=owner/name        # 1リポのみ
+node scripts/qa-workflows-audit.mjs --apply                  # issue を実際に close / create
+```
+
+- **GitHub 上の default branch を見る**: ローカルチェックアウトは見ない。ローカル未 fetch による大量の偽陰性が出たため（2026-09-13）。
+- 自動化は機械的に判定できる範囲のみ: 導入済みなのに open の追跡 issue が残っている → close、未導入・CI あり・言語判定可・追跡 issue 無し → issue 作成。独自 CI の方が高機能、lint 修正が大規模、といった質的判断は `needs-review` としてレポートに出すだけ。
+- **`--apply` は org 内の他リポに issue を作る/閉じる**。認証は実行者の `gh` に依存する。まず dry-run で内容を確認してから実行すること。CI 化はスコープ外。
