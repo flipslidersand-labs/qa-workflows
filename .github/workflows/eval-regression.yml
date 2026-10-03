@@ -31,18 +31,24 @@ jobs:
         id: reports
         run: |
           # PR の変更ファイルから current report を特定
-          CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- eval/reports/)
-          echo "changed_reports=$CHANGED" >> $GITHUB_OUTPUT
+          CHANGED=$(git diff --name-only "origin/${{ github.base_ref }}"...HEAD -- eval/reports/)
+          {
+            echo "changed_reports=$CHANGED"
+          } >> "$GITHUB_OUTPUT"
 
           # baseline: main ブランチの最新 report
-          git checkout origin/${{ github.base_ref }} -- eval/reports/ 2>/dev/null || true
-          BASELINE=$(ls eval/reports/*.json 2>/dev/null | sort | tail -1)
-          echo "baseline=$BASELINE" >> $GITHUB_OUTPUT
+          git checkout "origin/${{ github.base_ref }}" -- eval/reports/ 2>/dev/null || true
+          BASELINE=$(find eval/reports -maxdepth 1 -name "*.json" 2>/dev/null | sort | tail -1)
+          {
+            echo "baseline=$BASELINE"
+          } >> "$GITHUB_OUTPUT"
 
           # current に戻す
           git checkout HEAD -- eval/reports/ 2>/dev/null || true
-          CURRENT=$(ls eval/reports/*.json 2>/dev/null | sort | tail -1)
-          echo "current=$CURRENT" >> $GITHUB_OUTPUT
+          CURRENT=$(find eval/reports -maxdepth 1 -name "*.json" 2>/dev/null | sort | tail -1)
+          {
+            echo "current=$CURRENT"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Compare reports
         id: compare
@@ -54,10 +60,12 @@ jobs:
             --markdown \
             --threshold 0.05 2>&1) || REGRESSION=true
 
-          echo "result<<EOF" >> $GITHUB_OUTPUT
-          echo "$RESULT" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-          echo "regression=${REGRESSION:-false}" >> $GITHUB_OUTPUT
+          {
+            echo "result<<EOF"
+            echo "$RESULT"
+            echo "EOF"
+            echo "regression=${REGRESSION:-false}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Post PR comment
         if: steps.compare.outputs.result != ''
