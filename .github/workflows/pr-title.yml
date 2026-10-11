@@ -1,0 +1,102 @@
+name: PR Title (Reusable)
+
+# PR タイトルが Conventional Commits 形式か検査する reusable workflow。
+# 型リストは dev-platform の .commitlintrc.js (type-enum) と揃え、revert を追加:
+#   feat fix docs style refactor perf test chore ci build revert
+# 形式: <type>(<scope>)?(!)?: <subject>   例) feat(api): add health endpoint
+# 違反時は「正しい例」と修正コマンド(gh pr edit)をログと Summary に出す。
+#
+# 呼び出し側で job-level permissions (contents: read) を明記すること。
+# このファイル自身は permissions を要求しない
+# （#772/#774 インシデントの教訓。詳細は stale-pr.yml のコメント参照）
+#
+# 呼び出し側の PR トリガーに `edited` を含めること（タイトル修正で再検査されるため）:
+#   on:
+#     pull_request:
+#       types: [opened, edited, synchronize, reopened]
+#
+# job 名は固有名 `pr-title-check`（他 reusable との required check 名衝突回避）。
+# 呼び出し側の check 名は `<caller job 名> / pr-title-check`。
+
+on:
+  workflow_call:
+    inputs:
+      types:
+        description: 許可する type のスペース区切りリスト
+        type: string
+        default: "feat fix docs style refactor perf test chore ci build revert"
+
+jobs:
+  pr-title-check:
+    name: pr-title-check
+    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
+    steps:
+      - name: Validate PR title (Conventional Commits)
+        env:
+          # タイトルは信頼できない入力のため env 経由で渡す（スクリプト注入防止）
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          ALLOWED_TYPES: ${{ inputs.types }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${PR_NUMBER}" ]; then
+            echo "::error::pull_request イベントで呼び出してください（PR 番号が取得できません）"
+            exit 1
+          fi
+
+          types_re="$(echo "${ALLOWED_TYPES}" | xargs | tr ' ' '|')"
+          pattern="^(${types_re})(\([^()[:space:]]+\))?!?: [^[:space:]].*$"
+
+          reason=""
+          if ! [[ "${PR_TITLE}" =~ ${pattern} ]]; then
+            reason="形式が '<type>(<scope>): <subject>' ではないか、type が許可リスト外です"
+          elif [[ "${PR_TITLE}" == *. ]]; then
+            reason="subject の末尾にピリオドは付けません"
+          fi
+
+          if [ -z "${reason}" ]; then
+            echo "OK: ${PR_TITLE}"
+            exit 0
+          fi
+
+          # 修正案: type の大文字小文字違いは直し、type が無ければ chore: を仮置き
+          suggestion="${PR_TITLE%.}"
+          lower_head="$(echo "${suggestion}" | sed -E 's/^([A-Za-z]+)/\L\1/')"
+          if [[ "${lower_head}" =~ ${pattern} ]]; then
+            suggestion="${lower_head}"
+          else
+            suggestion="chore: ${suggestion}"
+          fi
+
+          cmd="gh pr edit ${PR_NUMBER} --title \"${suggestion//\"/\\\"}\""
+
+          echo "::error title=PR title が Conventional Commits 形式ではありません::${reason}。修正例: ${suggestion}"
+          {
+            echo "### PR タイトル違反"
+            echo
+            echo "- 現在: \`${PR_TITLE}\`"
+            echo "- 理由: ${reason}"
+            echo "- 許可 type: \`${ALLOWED_TYPES}\`"
+            echo
+            echo "正しい例:"
+            echo
+            echo '```'
+            echo "feat(api): add health endpoint"
+            echo "fix: handle empty response"
+            echo "ci!: drop node 18"
+            echo '```'
+            echo
+            echo "修正コマンド（type は内容に合わせて変更してください）:"
+            echo
+            echo '```'
+            echo "${cmd}"
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          echo "現在のタイトル: ${PR_TITLE}"
+          echo "理由: ${reason}"
+          echo "正しい例: feat(api): add health endpoint / fix: handle empty response"
+          echo "修正コマンド:"
+          echo "  ${cmd}"
+          exit 1
