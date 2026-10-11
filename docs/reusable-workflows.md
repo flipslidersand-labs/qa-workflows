@@ -230,6 +230,16 @@ caller は `pull-requests: write` を宣言する。
 
 caller は `pull-requests: write` と `issues: write` を宣言する。
 
+### pr-title
+
+PR タイトルを Conventional Commits 形式 (`<type>(<scope>)?(!)?: <subject>`) で検査する。違反時は正しい例と修正コマンド `gh pr edit <番号> --title "..."` を表示。
+
+| input | 既定 | 説明 |
+|---|---|---|
+| `types` | `feat fix docs style refactor perf test chore ci build revert` | 許可 type（スペース区切り。dev-platform の `.commitlintrc.js` と同じ + `revert`） |
+
+caller は `contents: read` を宣言し、`pull_request` の types に `edited` を含める。job 名は `pr-title-check`（check 名: `<caller job 名> / pr-title-check`）。
+
 ## 呼び出せない workflow
 
 `eval-regression.yml` は `workflow_call` を持たず、`pull_request`（`eval/**` の変更）で直接動く。

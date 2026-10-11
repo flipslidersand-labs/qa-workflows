@@ -35,6 +35,7 @@ jobs:
 | `trivy-scan.yml` | 脆弱性/設定ミススキャン(trivy) + Code Scanning SARIF連携 |
 | `dependabot-auto-merge.yml` | Dependabot PRのtriage(patch即マージ/minor待機ラベル/major・security手動レビュー) |
 | `dependabot-auto-merge-minor.yml` | minor待機ラベルのPRを24h経過後にauto-merge昇格(cron) |
+| `pr-title.yml` | PRタイトルのConventional Commits検査(違反時は正しい例と`gh pr edit`コマンドを表示) |
 
 ## api-e2e の使い方
 
@@ -62,6 +63,24 @@ jobs:
     permissions:
       contents: read
     uses: flipslidersand-labs/qa-workflows/.github/workflows/gitleaks.yml@main
+```
+
+## pr-title の使い方
+
+呼び出し側で `permissions: contents: read` を明記し、トリガーに `edited` を含める
+（タイトル修正で再検査させるため）。job 名は固有名 `pr-title-check`。
+呼び出し側の check 名は `<caller job 名> / pr-title-check`（下記例なら `pr-title / pr-title-check`）。
+
+```yaml
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+jobs:
+  pr-title:
+    permissions:
+      contents: read
+    uses: flipslidersand-labs/qa-workflows/.github/workflows/pr-title.yml@main
 ```
 
 ## trivy-scan の使い方
