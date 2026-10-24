@@ -17,6 +17,12 @@ on:
         description: drift 検知時に失敗させるか（既定 false＝警告のみ。助言として使う）
         type: boolean
         default: false
+      policy-ref:
+        description: >-
+          スクリプトとプロファイルを取る qa-workflows の ref（既定 main）。
+          再現性が要るなら commit SHA を渡す（警告のみの助言用途なので既定は main）
+        type: string
+        default: main
       runner:
         description: >-
           実行 runner。未指定なら vars.GATE_RUNNER を使う
@@ -40,13 +46,13 @@ jobs:
             echo "found=false" >> "$GITHUB_OUTPUT"
           fi
 
-      # 呼び出された reusable 自身のコミットを取る（caller が SHA 固定していればその版）
+      # reusable 内からは自分自身のコミットを参照できない（github コンテキストに無い）ため ref を入力で受ける
       - name: Checkout policy and script (qa-workflows)
         if: steps.has-policy.outputs.found == 'true'
         uses: actions/checkout@v7
         with:
           repository: flipslidersand-labs/qa-workflows
-          ref: ${{ github.job_workflow_sha }}
+          ref: ${{ inputs.policy-ref }}
           path: .qa-workflows
           sparse-checkout: |
             scripts/dep-policy-check.py
