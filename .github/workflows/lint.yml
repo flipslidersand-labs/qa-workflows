@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   actionlint:
-    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
+    runs-on: ${{ vars.GATE_RUNNER }}
     env:
       ACTIONLINT_VERSION: "1.7.12"
     steps:
