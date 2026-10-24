@@ -166,5 +166,5 @@ jobs:
 
 ## runner 選択
 
-`go-test` / `python-test` は runner input 未指定なら `vars.GATE_RUNNER` → `ubuntu-latest` の順に自動採用。
-public リポは GitHub-hosted が無料のため通常 `ubuntu-latest`（`runner: ubuntu-latest` 明示 or GATE_RUNNER 未設定）。
+reusable は runner input 未指定なら `vars.GATE_RUNNER` のみを参照し、既定値を持たない（ADR-010）。変数が未設定なら `runs-on` が空になりエラーで止まる。
+private リポは org 変数 `GATE_RUNNER=linux-general` が届く。public リポは org 変数が届かないため、**リポ変数 `GATE_RUNNER` の設定が必須**（現状は GitHub-hosted を使う `ubuntu-latest`）。
