@@ -64,11 +64,11 @@ jobs:
         env:
           FAIL_ON_DRIFT: ${{ inputs.fail-on-drift }}
         run: |
-          # self-hosted の python は externally-managed (PEP 668) で pip install が拒否されるため venv を使う
-          python3 -m venv "$RUNNER_TEMP/dep-policy-venv"
-          "$RUNNER_TEMP/dep-policy-venv/bin/pip" install pyyaml --quiet --disable-pip-version-check
+          # self-hosted の python は externally-managed (PEP 668) で pip install が拒否され、venv も
+          # ensurepip が無い環境がある。--target は拒否されないので、専用ディレクトリに入れて PYTHONPATH で渡す
+          python3 -m pip install --target "$RUNNER_TEMP/dep-policy-deps" pyyaml --quiet --disable-pip-version-check
           rc=0
-          "$RUNNER_TEMP/dep-policy-venv/bin/python" .qa-workflows/scripts/dep-policy-check.py \
+          PYTHONPATH="$RUNNER_TEMP/dep-policy-deps" python3 .qa-workflows/scripts/dep-policy-check.py \
             --policy-dir .qa-workflows/dependency-policy || rc=$?
           if [ "$rc" -ne 0 ]; then
             echo "::warning::dependency drift detected (exit ${rc})"
