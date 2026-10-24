@@ -45,8 +45,8 @@ on:
         default: true
       runner:
         description: >-
-          実行 runner。未指定なら vars.GATE_RUNNER →
-          ubuntu-latest の順に自動選択（caller は通常渡さない）
+          実行 runner。未指定なら vars.GATE_RUNNER を使う
+          （caller は通常渡さない）
         type: string
         default: ""
     secrets:
@@ -57,7 +57,7 @@ on:
 jobs:
   test:
     # caller の with で vars を参照すると解決に失敗するため、runner 選択は reusable 側で行う
-    runs-on: ${{ inputs.runner != '' && inputs.runner || vars.GATE_RUNNER || 'ubuntu-latest' }}
+    runs-on: ${{ inputs.runner != '' && inputs.runner || vars.GATE_RUNNER }}
     defaults:
       run:
         working-directory: ${{ inputs.working-directory }}
