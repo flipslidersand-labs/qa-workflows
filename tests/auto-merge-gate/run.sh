@@ -62,6 +62,15 @@ check "緑 + 24h 経過 (minor)"                        merge 24 "{$base,\"statu
 check "緑でも conflict"                              skip  0  "{\"createdAt\":\"2029-12-01T00:00:00Z\",\"labels\":[],\"mergeable\":\"CONFLICTING\",\"statusCheckRollup\":[$ok]}"
 check "緑でも mergeable=UNKNOWN"                     wait  0  "{\"createdAt\":\"2029-12-01T00:00:00Z\",\"labels\":[],\"mergeable\":\"UNKNOWN\",\"statusCheckRollup\":[$ok]}"
 
+# strict 保護: 緑・MERGEABLE でも base より遅れている PR は直接マージできない
+mk() { echo "{\"createdAt\":\"2029-12-01T00:00:00Z\",\"labels\":[],\"mergeable\":\"MERGEABLE\",\"mergeStateStatus\":\"$1\",\"statusCheckRollup\":$2}"; }
+check "緑 + BEHIND → behind(マージしない)"          behind 0 "$(mk BEHIND "[$ok]")"
+check "緑 + CLEAN → merge"                           merge  0 "$(mk CLEAN "[$ok]")"
+check "赤 + BEHIND → 赤を優先"                       red    0 "$(mk BEHIND "[$ng]")"
+check "実行中 + BEHIND → wait"                       wait   0 "$(mk BEHIND "[$running]")"
+check "緑 + BEHIND でも待機時間未満 → wait"          wait   24 "{\"createdAt\":\"2029-12-31T12:00:00Z\",\"labels\":[],\"mergeable\":\"MERGEABLE\",\"mergeStateStatus\":\"BEHIND\",\"statusCheckRollup\":[$ok]}"
+check "conflict + BEHIND → skip"                     skip   0 "{\"createdAt\":\"2029-12-01T00:00:00Z\",\"labels\":[],\"mergeable\":\"CONFLICTING\",\"mergeStateStatus\":\"DIRTY\",\"statusCheckRollup\":[$ok]}"
+
 if [ "$fail" -ne 0 ]; then
   echo "失敗あり" >&2
   exit 1

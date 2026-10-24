@@ -44,7 +44,7 @@ old='"createdAt":"2020-01-01T00:00:00Z"'
 ok='{"status":"COMPLETED","conclusion":"SUCCESS"}'
 ng='{"status":"COMPLETED","conclusion":"FAILURE"}'
 run='{"status":"IN_PROGRESS","conclusion":null}'
-j() { echo "{$old,\"labels\":$2,\"mergeable\":\"MERGEABLE\",\"statusCheckRollup\":$1}"; }
+j() { echo "{$old,\"labels\":$2,\"mergeable\":\"MERGEABLE\",\"mergeStateStatus\":\"${3:-CLEAN}\",\"statusCheckRollup\":$1}"; }
 
 scenario "緑 patch → squash マージ(--auto なし) + promoted ラベル" patch "$(j "[$ok]" '[]')" \
   'pr merge 7 --repo o/r --squash' 'pr merge .*--auto'
@@ -64,6 +64,15 @@ scenario "マージ失敗 → ラベルを触らない(次回再判定)" patch "
   'pr merge 7' 'pr edit' 1
 scenario "チェック 0 件 → マージしない(偽の緑にしない)" patch "$(j '[]' '[]')" \
   'pr view 7' 'pr merge'
+
+scenario "緑でも BEHIND → behind ラベルのみ(マージしない)" patch "$(j "[$ok]" '[]' BEHIND)" \
+  'add-label dependabot/behind' 'pr merge'
+scenario "BEHIND + すでに behind ラベル → 二重に付けない" patch "$(j "[$ok]" '[{"name":"dependabot/behind"}]' BEHIND)" \
+  'pr view 7' 'add-label|pr merge'
+scenario "BEHIND 解消(実行中に戻った) → behind を外す" patch "$(j "[$ok,$run]" '[{"name":"dependabot/behind"}]' CLEAN)" \
+  'remove-label dependabot/behind' 'pr merge'
+scenario "赤 + BEHIND → ci-red のみ(behind は付けない)" patch "$(j "[$ng]" '[]' BEHIND)" \
+  'add-label dependabot/ci-red' 'add-label dependabot/behind|pr merge'
 
 # dry-run は書き込み系を一切呼ばない
 : > "$tmp/log"

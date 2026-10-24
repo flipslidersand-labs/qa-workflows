@@ -61,6 +61,8 @@ jobs:
           if [ "$dry" != true ]; then
             gh label create "dependabot/ci-red" --repo "$repo" --color B60205 \
               --description "全チェックが成功していない。自動マージを見送り中（人が確認）" --force >/dev/null
+            gh label create "dependabot/behind" --repo "$repo" --color FBCA04 \
+              --description "base より遅れている。strict 保護のため直接マージ不可（人が更新するか Dependabot の rebase を待つ）" --force >/dev/null
             gh label create "dependabot/patch-promoted" --repo "$repo" --color 0E8A16 \
               --description "patch更新。全チェック成功を確認しマージ済み" --force >/dev/null
             gh label create "dependabot/minor-promoted" --repo "$repo" --color 0E8A16 \
@@ -68,7 +70,7 @@ jobs:
           fi
 
           # 判定本体（入力: gh pr view の JSON。環境変数 GATE_NOW=現在epoch, GATE_WAIT=待機時間h）。
-          # 出力は「decision<TAB>reason<TAB>ci-red ラベル有無」の1行。gh の内蔵 jq(--jq)で実行する
+          # 出力は「decision<TAB>reason<TAB>ci-red ラベル有無<TAB>behind ラベル有無」の1行。gh の内蔵 jq(--jq)で実行する
           # ため、runner に jq バイナリは不要（DS1 runner には jq が無い）。
           # tests/auto-merge-gate/run.sh が GATE_JQ_BEGIN〜END の間を取り出して固定データでテストする。
           # GATE_JQ_BEGIN
@@ -88,16 +90,27 @@ jobs:
           | ($ENV.GATE_WAIT | tonumber) as $wait
           | ((($now - (.createdAt | fromdateiso8601)) / 3600) | floor) as $age
           | ([.labels[].name] | index("dependabot/ci-red") != null) as $has_red
+          | ([.labels[].name] | index("dependabot/behind") != null) as $has_behind
           | (if ($n | length) == 0 then ["wait", "no-checks"]
              elif ($n | any(. == "fail")) then ["red", "check-failed"]
              elif ($n | any(. == "pending")) then ["wait", "checks-pending"]
              elif $age < $wait then ["wait", "age \($age)h<\($wait)h"]
              elif .mergeable == "CONFLICTING" then ["skip", "conflict"]
              elif .mergeable != "MERGEABLE" then ["wait", "mergeable=\(.mergeable)"]
-             else ["merge", "all-green age \($age)h"] end) + [$has_red]
+             elif .mergeStateStatus == "BEHIND" then ["behind", "base-behind(strict)"]
+             else ["merge", "all-green age \($age)h"] end) + [$has_red, $has_behind]
           | @tsv
           JQ
           # GATE_JQ_END
+
+          # <PR番号> <ラベル> <付けたいか> <今付いているか> — 差分があるときだけ付与/解除
+          set_label() {
+            if [ "$3" = true ] && [ "$4" != true ]; then
+              gh pr edit "$1" --repo "$repo" --add-label "$2"
+            elif [ "$3" != true ] && [ "$4" = true ]; then
+              gh pr edit "$1" --repo "$repo" --remove-label "$2"
+            fi
+          }
 
           for spec in "patch:0" "minor:24"; do
             kind="${spec%%:*}"
@@ -105,8 +118,8 @@ jobs:
             for n in $(gh pr list --repo "$repo" --state open --label "dependabot/${kind}-pending" \
                          --json number --jq '.[].number'); do
               res=$(GATE_NOW="$now" GATE_WAIT="$wait_h" gh pr view "$n" --repo "$repo" \
-                      --json number,createdAt,labels,mergeable,statusCheckRollup --jq "$GATE_JQ")
-              IFS=$'\t' read -r decision reason has_red <<<"$res"
+                      --json number,createdAt,labels,mergeable,mergeStateStatus,statusCheckRollup --jq "$GATE_JQ")
+              IFS=$'\t' read -r decision reason has_red has_behind <<<"$res"
               echo "PR #$n [$kind] decision=$decision ($reason)"
               if [ "$dry" = true ]; then
                 continue
@@ -122,15 +135,13 @@ jobs:
                     echo "::warning::PR #$n のマージに失敗（保護設定等）。次回再判定する"
                   fi
                   ;;
-                red)
-                  if [ "$has_red" != true ]; then
-                    gh pr edit "$n" --repo "$repo" --add-label "dependabot/ci-red"
-                  fi
-                  ;;
                 *)
-                  if [ "$has_red" = true ]; then
-                    gh pr edit "$n" --repo "$repo" --remove-label "dependabot/ci-red"
-                  fi
+                  # 赤・BEHIND は理由ラベルで可視化し、解消したら外す（マージはしない）
+                  want_red=false; want_behind=false
+                  [ "$decision" = red ] && want_red=true
+                  [ "$decision" = behind ] && want_behind=true
+                  set_label "$n" "dependabot/ci-red" "$want_red" "$has_red"
+                  set_label "$n" "dependabot/behind" "$want_behind" "$has_behind"
                   ;;
               esac
             done
