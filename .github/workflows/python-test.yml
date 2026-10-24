@@ -65,7 +65,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ inputs.python-version }}
           # self-hosted(ARC) は ~/.cache/pip が NFS 共有キャッシュのため GitHub cache は冗長。
