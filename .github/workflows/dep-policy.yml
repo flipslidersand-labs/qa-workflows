@@ -61,7 +61,7 @@ jobs:
 
       # runner の system python は pip も venv も無い／PEP 668 で拒否される環境がある（DS1 は 'No module named pip'）。
       # python-test.yml と同じく setup-python で python を用意する（キャッシュは使わない）
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         if: steps.has-policy.outputs.found == 'true'
         with:
           python-version: "3.12"
