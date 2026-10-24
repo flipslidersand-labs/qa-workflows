@@ -51,8 +51,8 @@ on:
         default: ""
       runner:
         description: >-
-          実行 runner。未指定なら vars.GATE_RUNNER →
-          ubuntu-latest の順に自動選択（caller は通常渡さない）
+          実行 runner。未指定なら vars.GATE_RUNNER を使う
+          （caller は通常渡さない）
         type: string
         default: ""
     secrets:
@@ -61,7 +61,7 @@ on:
 
 jobs:
   test:
-    runs-on: ${{ inputs.runner != '' && inputs.runner || vars.GATE_RUNNER || 'ubuntu-latest' }}
+    runs-on: ${{ inputs.runner != '' && inputs.runner || vars.GATE_RUNNER }}
     steps:
       - uses: actions/checkout@v7
 

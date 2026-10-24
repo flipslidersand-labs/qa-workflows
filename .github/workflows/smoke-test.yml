@@ -67,7 +67,7 @@ on:
 jobs:
   smoke:
     name: Smoke Test
-    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
+    runs-on: ${{ vars.GATE_RUNNER }}
     outputs:
       rollback: ${{ steps.check.outputs.rollback }}
       status_code: ${{ steps.check.outputs.status_code }}

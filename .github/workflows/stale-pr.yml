@@ -20,7 +20,7 @@ on:
 
 jobs:
   stale:
-    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
+    runs-on: ${{ vars.GATE_RUNNER }}
     steps:
       - uses: actions/stale@v11
         with:
