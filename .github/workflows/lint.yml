@@ -51,8 +51,8 @@ jobs:
           chmod +x "$RUNNER_TEMP/jqbin/jq"
           echo "$RUNNER_TEMP/jqbin" >> "$GITHUB_PATH"
 
-      - name: Gate judgement (real PR fixtures + boundaries)
+      - name: "Gate judgement (real PR fixtures and boundaries)"
         run: bash tests/auto-merge-gate/run.sh
 
-      - name: Promote step (gh stubbed: merge / label / dry-run branches)
+      - name: "Promote step (gh stubbed - merge, label and dry-run branches)"
         run: bash tests/auto-merge-gate/run-loop.sh
