@@ -1,9 +1,14 @@
 name: Dependabot Auto-merge Triage (Reusable)
 
 # ADR#05(dev-platform)の実装をreusable化したもの。
-# - patch: CI green を条件に即時 auto-merge を有効化する
+# マージの判断は dependabot-auto-merge-minor.yml(promoter)に集約する(#106)。
+# ここでは区分ごとのラベルを付けるだけで、`gh pr merge --auto` は使わない
+# (--auto は必須チェック=gitleaks のみを待ち、テストが赤でもマージするため。ADR-022)。
+# - patch: `dependabot/patch-pending` ラベルを付け、promoter が全チェック成功を
+#   確認してマージする(待機0h)
 # - minor: `dependabot/minor-pending` ラベルを付け、24h待機後に
-#   dependabot-auto-merge-minor.yml が昇格させる
+#   promoter が全チェック成功を確認してマージする
+# - 0.x の minor: semver 0.x は minor が breaking 相当のため major 扱い(手動レビュー)
 # - major: `dependabot/major` ラベルを付けるのみ。auto-mergeしない(手動レビュー)
 # - セキュリティアドバイザリ付き(Dependabot security update)は
 #   区分に関係なく auto-merge しない(手動レビュー最優先)
@@ -61,8 +66,10 @@ jobs:
         run: |
           gh label create "dependabot/security-review" --repo "$GITHUB_REPOSITORY" --color D93F0B \
             --description "セキュリティアドバイザリ付き更新。手動レビュー必須" --force
+          gh label create "dependabot/patch-pending" --repo "$GITHUB_REPOSITORY" --color FBCA04 \
+            --description "patch更新。全チェック成功を待ってpromoterがマージ" --force
           gh label create "dependabot/minor-pending" --repo "$GITHUB_REPOSITORY" --color FBCA04 \
-            --description "minor更新。CI green後24h待機中" --force
+            --description "minor更新。24h待機後、全チェック成功を待ってpromoterがマージ" --force
           gh label create "dependabot/minor-promoted" --repo "$GITHUB_REPOSITORY" --color 0E8A16 \
             --description "minor更新。24h経過しauto-merge有効化済み" --force
           gh label create "dependabot/major" --repo "$GITHUB_REPOSITORY" --color B60205 \
@@ -97,19 +104,26 @@ jobs:
         run: |
           gh pr edit "${{ github.event.pull_request.html_url }}" --add-label "dependabot/security-review"
 
-      - name: patch → 即時auto-merge
+      - name: patch → patch-pending ラベル(マージは promoter が全チェック成功を確認して実行)
         if: ${{ steps.security.outputs.is-security != 'true' && steps.metadata.outputs.update-type == 'version-update:semver-patch' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh pr merge --auto --squash "${{ github.event.pull_request.html_url }}"
+          gh pr edit "${{ github.event.pull_request.html_url }}" --add-label "dependabot/patch-pending"
 
       - name: minor → 24h待機ラベル
-        if: ${{ steps.security.outputs.is-security != 'true' && steps.metadata.outputs.update-type == 'version-update:semver-minor' }}
+        if: ${{ steps.security.outputs.is-security != 'true' && steps.metadata.outputs.update-type == 'version-update:semver-minor' && !startsWith(steps.metadata.outputs.new-version, '0.') }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh pr edit "${{ github.event.pull_request.html_url }}" --add-label "dependabot/minor-pending"
+
+      - name: 0.x の minor → 手動レビューラベル(semver 0.x は minor が breaking 相当)
+        if: ${{ steps.security.outputs.is-security != 'true' && steps.metadata.outputs.update-type == 'version-update:semver-minor' && startsWith(steps.metadata.outputs.new-version, '0.') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr edit "${{ github.event.pull_request.html_url }}" --add-label "dependabot/major"
 
       - name: major → 手動レビューラベル
         if: ${{ steps.metadata.outputs.update-type == 'version-update:semver-major' }}
