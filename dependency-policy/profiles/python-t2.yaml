@@ -1,0 +1,9 @@
+version: 1
+
+runtime:
+  python: "3.11"
+
+tools:
+  ruff: "0.11.13"
+  black: "24.12.0"
+  pytest: "8.4.1"

@@ -1,0 +1,9 @@
+version: 1
+
+runtime:
+  node: "22"
+
+tools:
+  typescript: "5.9.3"
+  prettier: "3.6.2"
+  eslint: "9.31.0"
