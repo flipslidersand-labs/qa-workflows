@@ -1,0 +1,69 @@
+name: Dependency Policy Drift (Reusable)
+
+# 依存ベースラインからの drift を検知する（dev-infrastructure#1134）。
+# スクリプトとプロファイルは qa-workflows に置く（public。private リポの横断 checkout は
+# 既定の GITHUB_TOKEN で読めず、continue-on-error で緑のまま空振りしていたため）。
+# caller のリポ直下に dep-policy.yaml（例: `dependency_profile: node-t2@1`）が必要。無ければスキップする。
+#
+# 使い方（caller）:
+#   jobs:
+#     dep-policy:
+#       uses: flipslidersand-labs/qa-workflows/.github/workflows/dep-policy.yml@<SHA>
+
+on:
+  workflow_call:
+    inputs:
+      fail-on-drift:
+        description: drift 検知時に失敗させるか（既定 false＝警告のみ。助言として使う）
+        type: boolean
+        default: false
+      runner:
+        description: >-
+          実行 runner。未指定なら vars.GATE_RUNNER を使う
+          （caller は通常渡さない）
+        type: string
+        default: ""
+
+jobs:
+  drift:
+    runs-on: ${{ inputs.runner != '' && inputs.runner || vars.GATE_RUNNER }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check dep-policy.yaml exists
+        id: has-policy
+        run: |
+          if [ -f dep-policy.yaml ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::dep-policy.yaml がないため drift 検知をスキップ"
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # 呼び出された reusable 自身のコミットを取る（caller が SHA 固定していればその版）
+      - name: Checkout policy and script (qa-workflows)
+        if: steps.has-policy.outputs.found == 'true'
+        uses: actions/checkout@v7
+        with:
+          repository: flipslidersand-labs/qa-workflows
+          ref: ${{ github.job_workflow_sha }}
+          path: .qa-workflows
+          sparse-checkout: |
+            scripts/dep-policy-check.py
+            dependency-policy
+          sparse-checkout-cone-mode: false
+
+      - name: Dependency policy drift check
+        if: steps.has-policy.outputs.found == 'true'
+        env:
+          FAIL_ON_DRIFT: ${{ inputs.fail-on-drift }}
+        run: |
+          pip install pyyaml --quiet --disable-pip-version-check
+          rc=0
+          python3 .qa-workflows/scripts/dep-policy-check.py \
+            --policy-dir .qa-workflows/dependency-policy || rc=$?
+          if [ "$rc" -ne 0 ]; then
+            echo "::warning::dependency drift detected (exit ${rc})"
+            [ "$FAIL_ON_DRIFT" = "true" ] && exit "$rc"
+          fi
+          exit 0

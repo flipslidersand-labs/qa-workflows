@@ -1,0 +1,51 @@
+# dependency-policy profile schema — v1
+#
+# Profiles define the recommended baseline for runtime versions and tool versions.
+# Individual repositories reference a profile via:
+#
+#   dependency_profile: node-t2@1
+#
+# Override example (in repo-level dep-policy.yaml):
+#
+#   dependency_profile: node-t2@1
+#   overrides:
+#     typescript:
+#       version: "5.8.3"
+#       reason: "wrangler compatibility"
+#       expires: "2026-10-01"
+#       related_issue: "https://github.com/org/repo/issues/42"
+#
+# Override required fields: version, reason
+# Override optional fields: expires, related_issue
+
+version: 1
+
+# Profile format spec
+profile:
+  # Profile schema version
+  version: integer # required; currently always 1
+
+  # runtime: language runtime version (minimum major)
+  runtime:
+    node: string # e.g. "22" — major only; lockfile controls patch
+    python: string # e.g. "3.11" — major.minor; patch not enforced
+    go: string # e.g. "1.23"
+    rust: string # e.g. "1.80" — matches rust-toolchain.toml channel
+
+  # tools: named tool → pinned version
+  # Validated against: package.json devDependencies, pyproject.toml dev deps
+  tools:
+    <name>: string # e.g. typescript: "5.9.3"
+
+# Override format spec
+override:
+  version: string # required: the version in use (must differ from baseline)
+  reason: string # required: why this override exists
+  expires: string # optional: ISO 8601 date; expired overrides trigger CI warning
+  related_issue: string # optional: URL to tracking issue
+
+
+# Drift check exit codes (dep-policy-check.sh)
+# 0: no drift
+# 1: drift detected (warn; does not fail CI by default)
+# 2: expired override detected (configurable: warn or fail)
