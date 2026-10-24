@@ -17,7 +17,7 @@ on:
 
 jobs:
   reviewdog:
-    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
+    runs-on: ${{ vars.GATE_RUNNER }}
     steps:
       - uses: actions/checkout@v7
 

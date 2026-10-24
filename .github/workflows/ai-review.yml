@@ -22,7 +22,7 @@ on:
 
 jobs:
   ai-review:
-    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
+    runs-on: ${{ vars.GATE_RUNNER }}
     permissions:
       pull-requests: write
       id-token: write # Vertex AI への WIF 認証用（#25 で実際に使用開始）
