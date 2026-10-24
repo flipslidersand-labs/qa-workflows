@@ -29,7 +29,7 @@ on:
 jobs:
   pr-title-check:
     name: pr-title-check
-    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
+    runs-on: ${{ vars.GATE_RUNNER }}
     steps:
       - name: Validate PR title (Conventional Commits)
         env:

@@ -10,7 +10,7 @@ on:
 
 jobs:
   regression-check:
-    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
+    runs-on: ${{ vars.GATE_RUNNER }}
     permissions:
       pull-requests: write
 

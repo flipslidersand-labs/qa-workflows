@@ -43,7 +43,7 @@ on:
 jobs:
   trivy-fs:
     name: Trivy (fs + misconfig)
-    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
+    runs-on: ${{ vars.GATE_RUNNER }}
     steps:
       - uses: actions/checkout@v7
 
@@ -69,7 +69,7 @@ jobs:
   trivy-image:
     name: Trivy (image)
     if: inputs.scan-image
-    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
+    runs-on: ${{ vars.GATE_RUNNER }}
     steps:
       - uses: actions/checkout@v7
 
