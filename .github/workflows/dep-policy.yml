@@ -59,16 +59,21 @@ jobs:
             dependency-policy
           sparse-checkout-cone-mode: false
 
+      # runner の system python は pip も venv も無い／PEP 668 で拒否される環境がある（DS1 は 'No module named pip'）。
+      # python-test.yml と同じく setup-python で python を用意する（キャッシュは使わない）
+      - uses: actions/setup-python@v5
+        if: steps.has-policy.outputs.found == 'true'
+        with:
+          python-version: "3.12"
+
       - name: Dependency policy drift check
         if: steps.has-policy.outputs.found == 'true'
         env:
           FAIL_ON_DRIFT: ${{ inputs.fail-on-drift }}
         run: |
-          # self-hosted の python は externally-managed (PEP 668) で pip install が拒否され、venv も
-          # ensurepip が無い環境がある。--target は拒否されないので、専用ディレクトリに入れて PYTHONPATH で渡す
-          python3 -m pip install --target "$RUNNER_TEMP/dep-policy-deps" pyyaml --quiet --disable-pip-version-check
+          python -m pip install pyyaml --quiet --disable-pip-version-check
           rc=0
-          PYTHONPATH="$RUNNER_TEMP/dep-policy-deps" python3 .qa-workflows/scripts/dep-policy-check.py \
+          python .qa-workflows/scripts/dep-policy-check.py \
             --policy-dir .qa-workflows/dependency-policy || rc=$?
           if [ "$rc" -ne 0 ]; then
             echo "::warning::dependency drift detected (exit ${rc})"
