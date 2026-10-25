@@ -4,9 +4,9 @@ on:
   workflow_call:
     inputs:
       go-version:
-        description: Go バージョン
+        description: Go バージョン。空なら working-directory の go.mod から読む(go.mod とずれて GOTOOLCHAIN=local で落ちるのを防ぐ)
         type: string
-        default: "1.23"
+        default: ""
       coverage-threshold:
         description: カバレッジ閾値（%）
         type: number
@@ -49,6 +49,7 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version: ${{ inputs.go-version }}
+          go-version-file: ${{ inputs.go-version == '' && format('{0}/go.mod', inputs.working-directory) || '' }}
           cache: true
 
       # -race は cgo 必須。素の actions-runner イメージ(arc-dev-nodee 等)には gcc が無く
