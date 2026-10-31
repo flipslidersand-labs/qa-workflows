@@ -134,6 +134,15 @@ PR の diff を Vertex AI（Workload Identity Federation 認証）でレビュ�
 | `gitleaks-version` | `8.30.1` | gitleaks CLI のバージョン |
 | `fail-on-detect` | `true` | 検出時に失敗にするか |
 
+### no-ai-artifacts
+
+| input | 既定 | 説明 |
+|---|---|---|
+| `forbidden-pattern` | `^\.claude/\|(^\|/)\.mcp\.json$` | 追跡されていたら失敗にするパスの拡張正規表現 |
+
+`CLAUDE.md` / `AGENTS.md` は既定で検査しない(公開するかはリポごとの判断)。呼び出し側で `permissions: contents: read` を宣言する。
+検出時は `git rm -r --cached` と `.gitignore` 追加で直す。履歴に残った内容(ローカル絶対パス等)は別途確認が要る。
+
 ### trivy-scan
 
 | input | 既定 | 説明 |
