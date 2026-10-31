@@ -32,6 +32,7 @@ jobs:
 | `smoke-test.yml` | デプロイ後ヘルスチェック |
 | `eval-regression.yml` | RAG/LLM 評価回帰 |
 | `gitleaks.yml` | シークレット静的スキャン(gitleaks OSS CLI) |
+| `no-ai-artifacts.yml` | AI 作業副産物(`.claude/` 配下・`.mcp.json`)の追跡を検出して失敗にする |
 | `trivy-scan.yml` | 脆弱性/設定ミススキャン(trivy) + Code Scanning SARIF連携 |
 | `dependabot-auto-merge.yml` | Dependabot PRのtriage(patch即マージ/minor待機ラベル/major・security手動レビュー) |
 | `dependabot-auto-merge-minor.yml` | minor待機ラベルのPRを24h経過後にauto-merge昇格(cron) |
