@@ -82,7 +82,7 @@ jobs:
     runs-on: ${{ vars.GATE_RUNNER }}
     timeout-minutes: ${{ inputs.timeout-minutes }}
     outputs:
-      rollback: ${{ steps.check.outputs.rollback }}
+      rollback: ${{ steps.decide.outputs.rollback }}
       status_code: ${{ steps.check.outputs.status_code }}
 
     steps:
@@ -125,6 +125,7 @@ jobs:
           exit 1
 
       - name: Extra endpoint checks
+        id: extra
         if: inputs.extra-checks != ''
         env:
           BASE_URL: ${{ inputs.service-url }}
@@ -150,9 +151,21 @@ jobs:
             exit 1
           fi
 
-      - name: Rollback trigger
-        if: failure()
+      # rollback の決定 (#89)。health 失敗(check)または extra-checks 失敗で true。
+      # outcome を見るので、どちらの step の失敗かを区別できる。
+      - name: Decide rollback
+        id: decide
+        if: always()
+        env:
+          CHECK_ROLLBACK: ${{ steps.check.outputs.rollback }}
+          CHECK_OUTCOME: ${{ steps.check.outcome }}
+          EXTRA_OUTCOME: ${{ steps.extra.outcome }}
         run: |
-          echo "::error::Smoke test failed — rollback required"
-          echo "::notice::Set rollback=true in downstream jobs to trigger rollback"
-          echo "rollback=true" >> "$GITHUB_OUTPUT"
+          # BEGIN smoke-rollback-decide
+          rollback=false
+          if [ "$CHECK_ROLLBACK" = true ] || [ "$CHECK_OUTCOME" = failure ] || [ "$EXTRA_OUTCOME" = failure ]; then
+            rollback=true
+            echo "::error::Smoke test failed — rollback required"
+          fi
+          echo "rollback=$rollback" >> "$GITHUB_OUTPUT"
+          # END smoke-rollback-decide
