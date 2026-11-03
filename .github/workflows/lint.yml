@@ -36,6 +36,10 @@ jobs:
         run: |
           "$RUNNER_TEMP/actionlint" -color
 
+      # smoke-test.yml の workflow_call / workflow_dispatch の inputs 二重定義のドリフト検出（#89）。
+      - name: Smoke-test inputs drift check
+        run: bash tests/smoke-inputs/run.sh
+
   # dependabot 自動マージの判定(全チェック成功のゲート)の回帰テスト(#106)。
   # 判定本体は dependabot-auto-merge-minor.yml から取り出して固定データで検査する。
   # jq は runner に無い場合がある(DS1)ため、SHA256 固定で取得する(ADR-007 と同じ流儀)。
