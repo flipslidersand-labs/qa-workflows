@@ -38,6 +38,8 @@ jobs:
 | `dependabot-auto-merge-minor.yml` | minor待機ラベルのPRを24h経過後にauto-merge昇格(cron) |
 | `pr-title.yml` | PRタイトルのConventional Commits検査(違反時は正しい例と`gh pr edit`コマンドを表示) |
 
+各 workflow の caller 必須 permissions・主要 input・推奨 job id は [早見表](docs/reusable-workflows.md#caller-早見表) に集約している。
+
 ## api-e2e の使い方
 
 `qa-platform`（k6 シナリオの取得元）は private リポのため、caller のデフォルト

@@ -18,6 +18,7 @@
  * "needs-review" として出すだけに留める。
  */
 import { execSync } from "child_process";
+import { extractPinnedShas, checkPins } from "./audit-sha-reach.mjs";
 
 const args = process.argv.slice(2);
 const apply = args.includes("--apply");
@@ -106,15 +107,17 @@ function auditRepo(repo, branch) {
   const detected = detectLanguage(repo, branch);
 
   let adopted = false;
-  if (hasCi && detected) {
+  const pinnedShas = new Set();
+  if (hasCi) {
     for (const f of workflowFiles) {
       const content = getFileContent(repo, branch, `.github/workflows/${f}`);
       if (
+        detected &&
         content.includes(`qa-workflows/.github/workflows/${detected.reusable}`)
       ) {
         adopted = true;
-        break;
       }
+      for (const sha of extractPinnedShas(content)) pinnedShas.add(sha);
     }
   }
 
@@ -127,7 +130,22 @@ function auditRepo(repo, branch) {
     lang: detected?.lang ?? "unknown",
     adopted,
     trackingIssue,
+    pins: checkPins([...pinnedShas], fetchCompareStatus),
   };
+}
+
+// qa-workflows main との compare status。404 は null、それ以外の失敗は throw。
+function fetchCompareStatus(sha) {
+  try {
+    return gh(
+      `api repos/flipslidersand-labs/qa-workflows/compare/main...${sha} --jq .status`,
+    );
+  } catch (e) {
+    if (/404|Not Found|No common ancestor/i.test(String(e.stderr ?? e.message))) {
+      return null;
+    }
+    throw e;
+  }
 }
 
 function closeStaleIssue(result) {
@@ -176,10 +194,22 @@ async function main() {
   const closed = [];
   const alreadyTracked = [];
   const skippedNoCiOrLang = [];
+  const unreachablePins = [];
+  const unknownPins = [];
 
   for (const { name: repo, branch } of targets) {
     if (repo === "flipslidersand-labs/qa-workflows") continue; // provider repo itself
     const r = auditRepo(repo, branch);
+
+    for (const p of r.pins) {
+      if (p.reachable === false) {
+        print(`⛔ ${repo}: pin SHA ${p.sha} 到達不能 (${p.status})`);
+        unreachablePins.push({ repo, ...p });
+      } else if (p.reachable === null) {
+        print(`❓ ${repo}: pin SHA ${p.sha} 確認不能 (API エラー)`);
+        unknownPins.push({ repo, ...p });
+      }
+    }
 
     if (r.adopted) {
       if (r.trackingIssue) {
@@ -212,6 +242,8 @@ async function main() {
     `already tracked (open issue exists, left as-is): ${alreadyTracked.length}`,
   );
   print(`skipped (no CI or unknown language): ${skippedNoCiOrLang.length}`);
+  print(`unreachable pinned SHAs (diverged/404): ${unreachablePins.length}`);
+  print(`pinned SHAs unverifiable (API error): ${unknownPins.length}`);
   print(
     "\n注意: このスクリプトは機械的判定のみ行う。「独自CIの方が高機能」「lint修正が大規模」等の質的判断は行わないため、" +
       "作成されたissueは着手前に必ず該当リポのCI内容を確認すること。",
