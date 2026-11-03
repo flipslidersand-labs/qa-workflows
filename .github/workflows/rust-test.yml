@@ -74,13 +74,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with:
           toolchain: ${{ inputs.rust-version }}
           components: rustfmt, clippy, llvm-tools-preview
           targets: ${{ inputs.rust-targets }}
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: ${{ inputs.working-directory }}
 
@@ -109,7 +109,7 @@ jobs:
 
       - name: Install cargo-llvm-cov
         if: ${{ inputs.run-tests && inputs.run-coverage }}
-        uses: taiki-e/install-action@cargo-llvm-cov
+        uses: taiki-e/install-action@7ba3421b00d46a29aaedcfe59124f4574e23e73e # cargo-llvm-cov
 
       - name: Test + coverage
         if: ${{ inputs.run-tests && inputs.run-coverage }}

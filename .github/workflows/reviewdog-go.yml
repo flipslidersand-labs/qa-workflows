@@ -30,7 +30,7 @@ jobs:
           go-version: ${{ inputs.go-version }}
           cache: true
 
-      - uses: reviewdog/action-golangci-lint@v2
+      - uses: reviewdog/action-golangci-lint@284129a3ac23bc5d8ac1522e0b6511df74a8836d # v2
         continue-on-error: true
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
