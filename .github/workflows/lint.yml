@@ -3,8 +3,8 @@ name: lint
 # qa-workflows 自身の workflow を actionlint で検査する（#47）。
 # reusable workflow は workflow_call のみで単体では実行されないため、
 # YAML 構文・式の誤りが caller リポで初めて発覚するのを防ぐ（#35 / #40）。
-# shellcheck 指摘（info レベル中心）は既存分が残っているため、当面は無効化して
-# 構文・式チェックのみを gate にする。
+# shellcheck 連携も有効（run: スクリプトの未クォート展開 SC2086 等を検出する、#90）。
+# 既存の指摘は #78 で解消済みのため、全 workflow で 0 件を保つこと。
 
 on:
   pull_request:
@@ -28,7 +28,7 @@ jobs:
 
       - name: Run actionlint
         run: |
-          "$RUNNER_TEMP/actionlint" -color -shellcheck=
+          "$RUNNER_TEMP/actionlint" -color
 
   # dependabot 自動マージの判定(全チェック成功のゲート)の回帰テスト(#106)。
   # 判定本体は dependabot-auto-merge-minor.yml から取り出して固定データで検査する。
