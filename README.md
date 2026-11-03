@@ -68,6 +68,22 @@ jobs:
     uses: flipslidersand-labs/qa-workflows/.github/workflows/gitleaks.yml@main
 ```
 
+## ai-review の使い方
+
+呼び出し側で `pull-requests: write` / `id-token: write` / `contents: read` を必ず明記する
+（reusable 側は permissions を持たない。未宣言だと WIF 認証とコメント投稿が失敗する）。
+input とリポ変数は [docs/reusable-workflows.md](docs/reusable-workflows.md#ai-review) を参照。
+
+```yaml
+jobs:
+  ai-review:
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    uses: flipslidersand-labs/qa-workflows/.github/workflows/ai-review.yml@main
+```
+
 ## pr-title の使い方
 
 呼び出し側で `permissions: contents: read` を明記し、トリガーに `edited` を含める
