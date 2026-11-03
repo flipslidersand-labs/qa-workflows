@@ -121,10 +121,12 @@ jobs:
       - name: Test + coverage
         if: ${{ inputs.run-tests && inputs.run-coverage }}
         working-directory: ${{ inputs.working-directory }}
+        env:
+          COVERAGE_THRESHOLD: ${{ inputs.coverage-threshold }}
         run: |
           cargo llvm-cov ${{ inputs.test-args }} \
             --lcov --output-path lcov.info \
-            --fail-under-lines ${{ inputs.coverage-threshold }}
+            --fail-under-lines "$COVERAGE_THRESHOLD"
 
       - name: Test (no coverage)
         if: ${{ inputs.run-tests && ! inputs.run-coverage }}
@@ -143,11 +145,14 @@ jobs:
         if: ${{ always() && inputs.run-coverage && github.event_name == 'pull_request' }}
         continue-on-error: true
         uses: actions/github-script@v9
+        env:
+          WORKING_DIRECTORY: ${{ inputs.working-directory }}
+          COVERAGE_THRESHOLD: ${{ inputs.coverage-threshold }}
         with:
           script: |
             const fs = require('fs');
             const path = require('path');
-            const lcov = path.join('${{ inputs.working-directory }}', 'lcov.info');
+            const lcov = path.join(process.env.WORKING_DIRECTORY, 'lcov.info');
             const MARKER = '<!-- qa-workflows-coverage-comment -->';
             let body;
             try {
@@ -159,10 +164,10 @@ jobs:
               }
               if (lf === 0) throw new Error('lcov.info に LF レコードが無い');
               const pct = ((lh / lf) * 100).toFixed(1);
-              const threshold = ${{ inputs.coverage-threshold }};
+              const threshold = Number(process.env.COVERAGE_THRESHOLD);
               const status = Number(pct) >= threshold ? '✅' : '❌';
               body = MARKER + '\n### 📊 Rust coverage: **' + pct + '%** ' + status +
-                '\n\n閾値: ' + threshold + '% | working-directory: `${{ inputs.working-directory }}`';
+                '\n\n閾値: ' + threshold + '% | working-directory: `' + process.env.WORKING_DIRECTORY + '`';
             } catch (e) {
               body = MARKER + '\n### 📊 Rust coverage\nlcov.info の読み込みに失敗しました: ' + e.message;
             }
