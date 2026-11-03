@@ -14,6 +14,12 @@ on:
       node-version:
         type: string
         default: "20"
+      timeout-minutes:
+        description: >-
+          job の最大実行時間（分）。超過すると job をキャンセルする
+          （caller は通常渡さない）
+        type: number
+        default: 30
     secrets:
       # Pass any app-level secrets needed at runtime
       APP_ENV:
@@ -22,6 +28,7 @@ on:
 jobs:
   e2e:
     runs-on: ${{ vars.GATE_RUNNER }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
     steps:
       - uses: actions/checkout@v7
 
