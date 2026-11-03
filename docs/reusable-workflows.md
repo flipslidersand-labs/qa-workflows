@@ -14,7 +14,7 @@ jobs:
 
 ## 共通事項
 
-- **runner**: `runner` input は既定で空。空なら `vars.GATE_RUNNER` → `ubuntu-latest` の順に reusable 側で解決する。
+- **runner**: `runner` input は既定で空。空なら `vars.GATE_RUNNER` を reusable 側で参照する（既定値なし。未設定ならエラー。public はリポ変数が必須）。
   caller の `with:` で `vars` を参照すると workflow 解決に失敗するため、caller は `runner` を通常渡さない。
 - **permissions**: reusable 側は job-level permissions を持たない workflow が多い（caller の権限を上書きして
   `startup_failure` になる事故の再発防止）。必要な permissions は README の各節を参照し、caller で明示する。
@@ -133,6 +133,15 @@ PR の diff を Vertex AI（Workload Identity Federation 認証）でレビュ�
 |---|---|---|
 | `gitleaks-version` | `8.30.1` | gitleaks CLI のバージョン |
 | `fail-on-detect` | `true` | 検出時に失敗にするか |
+
+### no-ai-artifacts
+
+| input | 既定 | 説明 |
+|---|---|---|
+| `forbidden-pattern` | `^\.claude/\|(^\|/)\.mcp\.json$` | 追跡されていたら失敗にするパスの拡張正規表現 |
+
+`CLAUDE.md` / `AGENTS.md` は既定で検査しない(公開するかはリポごとの判断)。呼び出し側で `permissions: contents: read` を宣言する。
+検出時は `git rm -r --cached` と `.gitignore` 追加で直す。履歴に残った内容(ローカル絶対パス等)は別途確認が要る。
 
 ### trivy-scan
 

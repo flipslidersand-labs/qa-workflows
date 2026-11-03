@@ -1,7 +1,13 @@
 name: Dependabot Auto-merge Minor Promote (Reusable)
 
-# dependabot-auto-merge.yml が付けた `dependabot/minor-pending` ラベルのPRを
-# 定期的に走査し、作成から24時間経過していれば auto-merge を有効化する。
+# dependabot-auto-merge.yml が付けた `dependabot/patch-pending`（待機0h）/
+# `dependabot/minor-pending`（待機24h）ラベルのPRを定期的に走査し、
+# 「待機時間経過 かつ 全チェックが成功 かつ MERGEABLE」の PR だけを直接 squash マージする。
+#
+# `gh pr merge --auto` は使わない（ADR-022）。--auto が待つのはブランチ保護の
+# 必須チェック（gitleaks のみ、ADR-006）だけで、テストが赤でもマージされるため（#95 / #106）。
+# 判定は下の GATE_JQ に集約（tests/auto-merge-gate/run.sh が同じ文字列を取り出してテストする）。
+# 全チェックが赤の PR は `dependabot/ci-red` ラベルで見えるようにし、人に回す。
 #
 # 重要: job-level permissions は宣言しない(理由は dependabot-auto-merge.yml
 # 冒頭コメント参照)。caller は自分の workflow で
@@ -15,10 +21,15 @@ on:
     inputs:
       runner:
         description: >-
-          実行 runner。未指定なら vars.GATE_RUNNER →
-          ubuntu-latest の順に自動選択（caller は通常渡さない）
+          実行 runner。未指定なら vars.GATE_RUNNER を使う
+          （caller は通常渡さない）
         type: string
         default: ""
+      dry-run:
+        description: >-
+          true ならマージ・ラベル変更をせず、各 PR の判定だけをログに出す
+        type: boolean
+        default: false
 
 # --- caller側の例 ---
 # name: Dependabot Auto-merge (minor, 24h wait)
@@ -35,28 +46,103 @@ on:
 
 jobs:
   promote:
-    runs-on: ${{ inputs.runner != '' && inputs.runner || vars.GATE_RUNNER || 'ubuntu-latest' }}
+    runs-on: ${{ inputs.runner != '' && inputs.runner || vars.GATE_RUNNER }}
     steps:
-      - name: Promote minor PRs past 24h wait
+      - name: Promote pending PRs (patch 0h / minor 24h) when all checks are green
         env:
           GH_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ inputs.dry-run }}
         run: |
           set -euo pipefail
-          now_epoch=$(date -u +%s)
+          repo="$GITHUB_REPOSITORY"
+          now=$(date -u +%s)
+          dry="${DRY_RUN:-false}"
 
-          gh pr list --repo "$GITHUB_REPOSITORY" --state open \
-            --label "dependabot/minor-pending" \
-            --json number,createdAt,url \
-            --jq '.[] | "\(.number)\t\(.createdAt)\t\(.url)"' |
-          while IFS=$'\t' read -r number created_at url; do
-            [ -z "$number" ] && continue
-            created_epoch=$(date -u -d "$created_at" +%s)
-            age_h=$(( (now_epoch - created_epoch) / 3600 ))
-            if [ "$age_h" -ge 24 ]; then
-              echo "PR #$number: ${age_h}h経過 → auto-merge有効化"
-              gh pr merge --auto --squash "$url"
-              gh pr edit "$url" --remove-label "dependabot/minor-pending" --add-label "dependabot/minor-promoted"
+          if [ "$dry" != true ]; then
+            gh label create "dependabot/ci-red" --repo "$repo" --color B60205 \
+              --description "全チェックが成功していない。自動マージを見送り中（人が確認）" --force >/dev/null
+            gh label create "dependabot/behind" --repo "$repo" --color FBCA04 \
+              --description "base より遅れている。strict 保護のため直接マージ不可（人が更新するか Dependabot の rebase を待つ）" --force >/dev/null
+            gh label create "dependabot/patch-promoted" --repo "$repo" --color 0E8A16 \
+              --description "patch更新。全チェック成功を確認しマージ済み" --force >/dev/null
+            gh label create "dependabot/minor-promoted" --repo "$repo" --color 0E8A16 \
+              --description "minor更新。24h経過・全チェック成功を確認しマージ済み" --force >/dev/null
+          fi
+
+          # 判定本体（入力: gh pr view の JSON。環境変数 GATE_NOW=現在epoch, GATE_WAIT=待機時間h）。
+          # 出力は「decision<TAB>reason<TAB>ci-red ラベル有無<TAB>behind ラベル有無」の1行。gh の内蔵 jq(--jq)で実行する
+          # ため、runner に jq バイナリは不要（DS1 runner には jq が無い）。
+          # tests/auto-merge-gate/run.sh が GATE_JQ_BEGIN〜END の間を取り出して固定データでテストする。
+          # GATE_JQ_BEGIN
+          read -r -d '' GATE_JQ <<'JQ' || true
+          def norm:
+            if has("state") and (has("conclusion") | not) then
+              (if .state == "SUCCESS" then "ok"
+               elif (.state == "PENDING" or .state == "EXPECTED") then "pending"
+               else "fail" end)
             else
-              echo "PR #$number: ${age_h}h経過（24h未満のためスキップ）"
+              (if .status != "COMPLETED" then "pending"
+               elif (.conclusion == "SUCCESS" or .conclusion == "NEUTRAL" or .conclusion == "SKIPPED") then "ok"
+               else "fail" end)
+            end;
+          ((.statusCheckRollup // []) | map(norm)) as $n
+          | ($ENV.GATE_NOW | tonumber) as $now
+          | ($ENV.GATE_WAIT | tonumber) as $wait
+          | ((($now - (.createdAt | fromdateiso8601)) / 3600) | floor) as $age
+          | ([.labels[].name] | index("dependabot/ci-red") != null) as $has_red
+          | ([.labels[].name] | index("dependabot/behind") != null) as $has_behind
+          | (if ($n | length) == 0 then ["wait", "no-checks"]
+             elif ($n | any(. == "fail")) then ["red", "check-failed"]
+             elif ($n | any(. == "pending")) then ["wait", "checks-pending"]
+             elif $age < $wait then ["wait", "age \($age)h<\($wait)h"]
+             elif .mergeable == "CONFLICTING" then ["skip", "conflict"]
+             elif .mergeable != "MERGEABLE" then ["wait", "mergeable=\(.mergeable)"]
+             elif .mergeStateStatus == "BEHIND" then ["behind", "base-behind(strict)"]
+             else ["merge", "all-green age \($age)h"] end) + [$has_red, $has_behind]
+          | @tsv
+          JQ
+          # GATE_JQ_END
+
+          # <PR番号> <ラベル> <付けたいか> <今付いているか> — 差分があるときだけ付与/解除
+          set_label() {
+            if [ "$3" = true ] && [ "$4" != true ]; then
+              gh pr edit "$1" --repo "$repo" --add-label "$2"
+            elif [ "$3" != true ] && [ "$4" = true ]; then
+              gh pr edit "$1" --repo "$repo" --remove-label "$2"
             fi
+          }
+
+          for spec in "patch:0" "minor:24"; do
+            kind="${spec%%:*}"
+            wait_h="${spec##*:}"
+            for n in $(gh pr list --repo "$repo" --state open --label "dependabot/${kind}-pending" \
+                         --json number --jq '.[].number'); do
+              res=$(GATE_NOW="$now" GATE_WAIT="$wait_h" gh pr view "$n" --repo "$repo" \
+                      --json number,createdAt,labels,mergeable,mergeStateStatus,statusCheckRollup --jq "$GATE_JQ")
+              IFS=$'\t' read -r decision reason has_red has_behind <<<"$res"
+              echo "PR #$n [$kind] decision=$decision ($reason)"
+              if [ "$dry" = true ]; then
+                continue
+              fi
+              case "$decision" in
+                merge)
+                  # --auto は使わない。ここで緑を確認済み（失敗しても次回の毎時で再判定）
+                  if gh pr merge "$n" --repo "$repo" --squash; then
+                    gh pr edit "$n" --repo "$repo" \
+                      --remove-label "dependabot/${kind}-pending" \
+                      --add-label "dependabot/${kind}-promoted" || true
+                  else
+                    echo "::warning::PR #$n のマージに失敗（保護設定等）。次回再判定する"
+                  fi
+                  ;;
+                *)
+                  # 赤・BEHIND は理由ラベルで可視化し、解消したら外す（マージはしない）
+                  want_red=false; want_behind=false
+                  [ "$decision" = red ] && want_red=true
+                  [ "$decision" = behind ] && want_behind=true
+                  set_label "$n" "dependabot/ci-red" "$want_red" "$has_red"
+                  set_label "$n" "dependabot/behind" "$want_behind" "$has_behind"
+                  ;;
+              esac
+            done
           done
