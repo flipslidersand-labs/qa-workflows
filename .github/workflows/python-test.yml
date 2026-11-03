@@ -46,7 +46,9 @@ on:
         type: boolean
         default: true
       ruff-version:
-        description: ruff の固定バージョン（空なら最新。CI の ruff 更新差分を避けたい時に固定）
+        description: >-
+          ruff の固定バージョン。空なら caller の .pre-commit-config.yaml の
+          ruff-pre-commit rev（先頭の v を除く）、それも無ければ最新
         type: string
         default: ""
       runner:
@@ -90,10 +92,33 @@ jobs:
       - name: Lint (ruff)
         if: ${{ inputs.run-lint }}
         working-directory: ${{ inputs.working-directory }}
+        env:
+          RUFF_VERSION_INPUT: ${{ inputs.ruff-version }}
         run: |
+          # 版の優先順位: ruff-version 入力 > .pre-commit-config.yaml の ruff-pre-commit rev > 最新 (#96)
+          RUFF_VER="$RUFF_VERSION_INPUT"
+          if [ -z "$RUFF_VER" ] && [ -f "$GITHUB_WORKSPACE/.pre-commit-config.yaml" ]; then
+            # BEGIN ruff-rev-extract (tests/ruff-rev/run.sh がこの区間を抜き出して検証する)
+            RUFF_VER="$(python3 - "$GITHUB_WORKSPACE/.pre-commit-config.yaml" <<'PY'
+          import re, sys
+          in_ruff = False
+          for line in open(sys.argv[1], encoding="utf-8"):
+              m = re.match(r"\s*-?\s*repo:\s*(\S+)", line)
+              if m:
+                  in_ruff = "ruff-pre-commit" in m.group(1)
+                  continue
+              m = re.match(r"\s*rev:\s*['\"]?([^'\"\s#]+)", line)
+              if m and in_ruff:
+                  print(m.group(1).lstrip("v"))
+                  break
+          PY
+            )"
+            # END ruff-rev-extract
+            [ -n "$RUFF_VER" ] && echo "ruff ${RUFF_VER} (.pre-commit-config.yaml の rev から)"
+          fi
           RUFF_SPEC="ruff"
-          if [ -n "${{ inputs.ruff-version }}" ]; then
-            RUFF_SPEC="ruff==${{ inputs.ruff-version }}"
+          if [ -n "$RUFF_VER" ]; then
+            RUFF_SPEC="ruff==${RUFF_VER}"
           fi
           pip install "$RUFF_SPEC" --quiet
           ruff check .
