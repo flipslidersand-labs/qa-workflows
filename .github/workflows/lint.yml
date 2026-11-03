@@ -36,6 +36,32 @@ jobs:
         run: |
           "$RUNNER_TEMP/actionlint" -color
 
+      # `|| true`(失敗の握りつぶし)の検出(#116)。許容は行末 `# allow-true: 理由`。
+      # 取得物が無く 0.01 秒のため actionlint ジョブに同居させる。
+      - name: Check silent-failure idiom (allow-true required)
+        run: |
+          bash tests/check-or-true/run.sh
+          bash scripts/check-or-true.sh
+
+  # zizmor の限定 audit(zizmor.yml: dangerous-triggers / excessive-permissions / artipacked / cache-poisoning)(#116)。
+  # --offline で約 0.1 秒。pip の ==バージョン固定で導入する(unpinned-uses 方針が決まるまで他の audit は外す)。
+  zizmor:
+    runs-on: ${{ vars.GATE_RUNNER }}
+    env:
+      ZIZMOR_VERSION: "1.31.1"
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install zizmor (pinned)
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/zizmor-venv"
+          "$RUNNER_TEMP/zizmor-venv/bin/pip" install --quiet "zizmor==${ZIZMOR_VERSION}"
+          echo "$RUNNER_TEMP/zizmor-venv/bin" >> "$GITHUB_PATH"
+
+      - name: Run zizmor (limited audits)
+        run: bash scripts/run-zizmor.sh
+
   # dependabot 自動マージの判定(全チェック成功のゲート)の回帰テスト(#106)。
   # 判定本体は dependabot-auto-merge-minor.yml から取り出して固定データで検査する。
   # jq は runner に無い場合がある(DS1)ため、SHA256 固定で取得する(ADR-007 と同じ流儀)。

@@ -81,7 +81,7 @@ jobs:
           # ため、runner に jq バイナリは不要（DS1 runner には jq が無い）。
           # tests/auto-merge-gate/run.sh が GATE_JQ_BEGIN〜END の間を取り出して固定データでテストする。
           # GATE_JQ_BEGIN
-          read -r -d '' GATE_JQ <<'JQ' || true
+          read -r -d '' GATE_JQ <<'JQ' || true # allow-true: read -d "" は EOF で exit 1 を返す仕様(heredoc 読み込み)
           def norm:
             if has("state") and (has("conclusion") | not) then
               (if .state == "SUCCESS" then "ok"
@@ -137,7 +137,7 @@ jobs:
                   if gh pr merge "$n" --repo "$repo" --squash; then
                     gh pr edit "$n" --repo "$repo" \
                       --remove-label "dependabot/${kind}-pending" \
-                      --add-label "dependabot/${kind}-promoted" || true
+                      --add-label "dependabot/${kind}-promoted" || true # allow-true: マージ済み後のラベル付与失敗は致命でない(次回の毎時で再判定)
                   else
                     echo "::warning::PR #$n のマージに失敗（保護設定等）。次回再判定する"
                   fi

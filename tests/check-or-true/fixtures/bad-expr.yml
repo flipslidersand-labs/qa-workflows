@@ -1,0 +1,6 @@
+jobs:
+  a:
+    steps:
+      - run: |
+          npm audit \
+            ${{ inputs.f && '' || '|| true' }}
