@@ -21,7 +21,7 @@ jobs:
 - **timeout-minutes**: 全 reusable の job に `timeout-minutes: ${{ inputs.timeout-minutes }}` を設定済み（number、workflow ごとの既定値。
   暴走 job が共有 runner を長時間占有するのを防ぐ）。caller は通常渡さない。既定より長い job を持つ caller のみ `with: timeout-minutes: 60` のように上書きする。
   既定値: rust-test 45 / go-test・python-test・node-test・pre-deploy・e2e-playwright 30 / api-e2e 20 / gitleaks・trivy-scan・ai-review・dep-policy 15 / その他 10。
-  reviewdog-go / python / rust は未対応（別途対応）。
+  reviewdog-go / python / rust も `timeout-minutes`（既定 15）を持つ。
 - **concurrency**: reusable 側では持たない（caller と group が衝突し得るため）。必要なら caller で
   `concurrency: { group: "${{ github.workflow }}-${{ github.ref }}", cancel-in-progress: true }` 等を宣言する。
 - **`token` secret**（go-test / python-test / rust-test / node-test）: 任意。GitHub token が別途必要な場合のみ渡す。
@@ -132,9 +132,11 @@ PR の diff を Vertex AI（Workload Identity Federation 認証）でレビュ�
 
 | workflow | input（既定） |
 |---|---|
-| `reviewdog-go` | `working-directory`(`.`) / `go-version`(`1.23`) / `fail-on-error`(`false`) / `runner`(`""`) |
-| `reviewdog-python` | `working-directory`(`.`) / `fail-on-error`(`false`) / `runner`(`""`) |
-| `reviewdog-rust` | `working-directory`(`.`) / `rust-version`(`stable`) / `clippy-args`(`--workspace --all-targets`) / `fail-on-error`(`false`) / `runner`(`""`) |
+| `reviewdog-go` | `working-directory`(`.`) / `go-version`(`1.23`) / `fail-on-error`(`false`) / `runner`(`""`) / `timeout-minutes`(`15`) |
+| `reviewdog-python` | `working-directory`(`.`) / `fail-on-error`(`false`) / `runner`(`""`) / `timeout-minutes`(`15`) |
+| `reviewdog-rust` | `working-directory`(`.`) / `rust-version`(`stable`) / `clippy-args`(`--workspace --all-targets`) / `fail-on-error`(`false`) / `runner`(`""`) / `timeout-minutes`(`15`) |
+
+`go-test` / `reviewdog-go` の `setup-go` cache は github-hosted のみ有効（self-hosted では無効、#88）。
 
 ### gitleaks
 
