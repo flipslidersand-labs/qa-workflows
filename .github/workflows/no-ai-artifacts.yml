@@ -35,7 +35,7 @@ jobs:
           FORBIDDEN_PATTERN: ${{ inputs.forbidden-pattern }}
         run: |
           set -euo pipefail
-          found=$(git ls-files | grep -E -e "$FORBIDDEN_PATTERN" || true)
+          found=$(git ls-files | grep -E -e "$FORBIDDEN_PATTERN" || true) # allow-true: grep の 0 件ヒット(exit 1)を許容し、直後の [ -n "$found" ] で判定
           if [ -n "$found" ]; then
             echo "::error::AI work artifacts are tracked in git:"
             echo "$found"

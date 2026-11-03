@@ -1,0 +1,7 @@
+jobs:
+  a:
+    steps:
+      - run: |
+          gh pr edit 1 || true # allow-true: 付与失敗は致命でない
+          # 説明: || true は使わない
+          echo "a || trueish"
