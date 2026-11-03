@@ -19,6 +19,12 @@ on:
         description: "Override k6 test duration (e.g. '60s')"
         type: string
         default: ""
+      timeout-minutes:
+        description: >-
+          job の最大実行時間（分）。超過すると job をキャンセルする
+          （caller は通常渡さない）
+        type: number
+        default: 20
     secrets:
       # qa-platform は private リポのため、caller のデフォルト GITHUB_TOKEN
       # ではチェックアウトできない。read アクセス権を持つ PAT を渡す。
@@ -28,6 +34,7 @@ on:
 jobs:
   api-e2e:
     runs-on: ${{ vars.GATE_RUNNER }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
     steps:
       - uses: actions/checkout@v7
 

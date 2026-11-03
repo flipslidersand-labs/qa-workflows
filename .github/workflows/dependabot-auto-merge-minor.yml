@@ -30,6 +30,12 @@ on:
           true ならマージ・ラベル変更をせず、各 PR の判定だけをログに出す
         type: boolean
         default: false
+      timeout-minutes:
+        description: >-
+          job の最大実行時間（分）。超過すると job をキャンセルする
+          （caller は通常渡さない）
+        type: number
+        default: 10
 
 # --- caller側の例 ---
 # name: Dependabot Auto-merge (minor, 24h wait)
@@ -47,6 +53,7 @@ on:
 jobs:
   promote:
     runs-on: ${{ inputs.runner != '' && inputs.runner || vars.GATE_RUNNER }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
     steps:
       - name: Promote pending PRs (patch 0h / minor 24h) when all checks are green
         env:
