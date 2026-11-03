@@ -57,6 +57,12 @@ on:
           （caller は通常渡さない）
         type: string
         default: ""
+      timeout-minutes:
+        description: >-
+          job の最大実行時間（分）。超過すると job をキャンセルする
+          （caller は通常渡さない）
+        type: number
+        default: 30
     secrets:
       token:
         required: false
@@ -64,6 +70,7 @@ on:
 jobs:
   test:
     runs-on: ${{ inputs.runner != '' && inputs.runner || vars.GATE_RUNNER }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
     steps:
       - uses: actions/checkout@v7
 
@@ -87,7 +94,9 @@ jobs:
       - name: Install dependencies
         if: ${{ inputs.install-command == '' }}
         working-directory: ${{ inputs.working-directory }}
-        run: pip install -e ".[${{ inputs.install-extras }}]" --quiet
+        env:
+          INSTALL_EXTRAS: ${{ inputs.install-extras }}
+        run: pip install -e ".[${INSTALL_EXTRAS}]" --quiet
 
       - name: Lint (ruff)
         if: ${{ inputs.run-lint }}
@@ -127,12 +136,14 @@ jobs:
       - name: Run tests
         if: ${{ inputs.run-tests }}
         working-directory: ${{ inputs.working-directory }}
+        env:
+          COVERAGE_THRESHOLD: ${{ inputs.coverage-threshold }}
         run: |
           pytest ${{ inputs.test-path }} ${{ inputs.pytest-args }} \
             --cov=. \
             --cov-report=term-missing \
             --cov-report=xml:coverage.xml \
-            --cov-fail-under=${{ inputs.coverage-threshold }} \
+            --cov-fail-under="$COVERAGE_THRESHOLD" \
             -v
 
       - name: Upload coverage
@@ -147,11 +158,14 @@ jobs:
         if: ${{ always() && inputs.run-tests && github.event_name == 'pull_request' }}
         continue-on-error: true
         uses: actions/github-script@v9
+        env:
+          WORKING_DIRECTORY: ${{ inputs.working-directory }}
+          COVERAGE_THRESHOLD: ${{ inputs.coverage-threshold }}
         with:
           script: |
             const fs = require('fs');
             const path = require('path');
-            const cov = path.join('${{ inputs.working-directory }}', 'coverage.xml');
+            const cov = path.join(process.env.WORKING_DIRECTORY, 'coverage.xml');
             const MARKER = '<!-- qa-workflows-coverage-comment -->';
             let body;
             try {
@@ -159,10 +173,10 @@ jobs:
               const m = xml.match(/line-rate="([0-9.]+)"/);
               if (!m) throw new Error('line-rate not found in coverage.xml');
               const pct = (parseFloat(m[1]) * 100).toFixed(1);
-              const threshold = ${{ inputs.coverage-threshold }};
+              const threshold = Number(process.env.COVERAGE_THRESHOLD);
               const status = Number(pct) >= threshold ? '✅' : '❌';
               body = MARKER + '\n### 📊 Python coverage: **' + pct + '%** ' + status +
-                '\n\n閾値: ' + threshold + '% | working-directory: `${{ inputs.working-directory }}`';
+                '\n\n閾値: ' + threshold + '% | working-directory: `' + process.env.WORKING_DIRECTORY + '`';
             } catch (e) {
               body = MARKER + '\n### 📊 Python coverage\ncoverage.xml の読み込みに失敗しました: ' + e.message;
             }

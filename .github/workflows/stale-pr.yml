@@ -17,10 +17,17 @@ on:
         description: stale 後、何日でクローズするか
         type: number
         default: 7
+      timeout-minutes:
+        description: >-
+          job の最大実行時間（分）。超過すると job をキャンセルする
+          （caller は通常渡さない）
+        type: number
+        default: 10
 
 jobs:
   stale:
     runs-on: ${{ vars.GATE_RUNNER }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
     steps:
       - uses: actions/stale@v11
         with:

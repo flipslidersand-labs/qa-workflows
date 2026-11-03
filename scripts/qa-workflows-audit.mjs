@@ -19,6 +19,12 @@
  */
 import { execSync } from "child_process";
 import { extractPinnedShas, checkPins } from "./audit-sha-reach.mjs";
+import {
+  BASE_COMMIT,
+  CALLER_FILE_RE,
+  extractDependabotUses,
+  judgeDependabotCaller,
+} from "./audit-dependabot.mjs";
 
 const args = process.argv.slice(2);
 const apply = args.includes("--apply");
@@ -108,6 +114,7 @@ function auditRepo(repo, branch) {
 
   let adopted = false;
   const pinnedShas = new Set();
+  const dependabotUses = [];
   if (hasCi) {
     for (const f of workflowFiles) {
       const content = getFileContent(repo, branch, `.github/workflows/${f}`);
@@ -118,6 +125,7 @@ function auditRepo(repo, branch) {
         adopted = true;
       }
       for (const sha of extractPinnedShas(content)) pinnedShas.add(sha);
+      if (CALLER_FILE_RE.test(f)) dependabotUses.push(...extractDependabotUses(content));
     }
   }
 
@@ -131,7 +139,25 @@ function auditRepo(repo, branch) {
     adopted,
     trackingIssue,
     pins: checkPins([...pinnedShas], fetchCompareStatus),
+    dependabot: judgeDependabotCaller(
+      { uses: dependabotUses },
+      fetchBaseStatus,
+    ),
   };
+}
+
+// #108 のマージコミットとの compare status(BASE...ref)。404 は null、それ以外は throw。
+function fetchBaseStatus(ref) {
+  try {
+    return gh(
+      `api repos/flipslidersand-labs/qa-workflows/compare/${BASE_COMMIT}...${ref} --jq .status`,
+    );
+  } catch (e) {
+    if (/404|Not Found|No common ancestor/i.test(String(e.stderr ?? e.message))) {
+      return null;
+    }
+    throw e;
+  }
 }
 
 // qa-workflows main との compare status。404 は null、それ以外の失敗は throw。
@@ -196,6 +222,7 @@ async function main() {
   const skippedNoCiOrLang = [];
   const unreachablePins = [];
   const unknownPins = [];
+  const dependabotIssues = [];
 
   for (const { name: repo, branch } of targets) {
     if (repo === "flipslidersand-labs/qa-workflows") continue; // provider repo itself
@@ -209,6 +236,17 @@ async function main() {
         print(`❓ ${repo}: pin SHA ${p.sha} 確認不能 (API エラー)`);
         unknownPins.push({ repo, ...p });
       }
+    }
+
+    const d = r.dependabot;
+    if (d.applicable && !d.ok) {
+      const parts = [
+        ...d.missing.map((m) => `${m} 欠落`),
+        ...d.stale.map((s) => `${s.role} 旧版 @${s.ref.slice(0, 7)} (${s.status})`),
+        ...d.unknown.map((u) => `${u.role} @${u.ref.slice(0, 7)} 確認不能`),
+      ];
+      print(`🔧 ${repo}: dependabot 自動マージ caller 要更新: ${parts.join(", ")}`);
+      dependabotIssues.push({ repo, ...d });
     }
 
     if (r.adopted) {
@@ -244,6 +282,9 @@ async function main() {
   print(`skipped (no CI or unknown language): ${skippedNoCiOrLang.length}`);
   print(`unreachable pinned SHAs (diverged/404): ${unreachablePins.length}`);
   print(`pinned SHAs unverifiable (API error): ${unknownPins.length}`);
+  print(
+    `dependabot caller needing update (旧版/triage・promoter欠落/確認不能): ${dependabotIssues.length}`,
+  );
   print(
     "\n注意: このスクリプトは機械的判定のみ行う。「独自CIの方が高機能」「lint修正が大規模」等の質的判断は行わないため、" +
       "作成されたissueは着手前に必ず該当リポのCI内容を確認すること。",
