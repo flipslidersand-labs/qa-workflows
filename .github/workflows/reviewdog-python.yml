@@ -14,10 +14,18 @@ on:
           （Phase後半で true に切り替える運用を想定 #774）
         type: boolean
         default: false
+      runner:
+        description: >-
+          実行 runner。未指定なら vars.GATE_RUNNER を使う
+          （caller は通常渡さない）
+        type: string
+        default: ""
 
 jobs:
   reviewdog:
-    runs-on: ${{ vars.GATE_RUNNER }}
+    # caller の with で vars を参照すると解決に失敗するため、runner 選択は
+    # reusable 側で行う（inputs.runner → vars.GATE_RUNNER）
+    runs-on: ${{ inputs.runner != '' && inputs.runner || vars.GATE_RUNNER }}
     steps:
       - uses: actions/checkout@v7
 
