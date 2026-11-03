@@ -18,7 +18,16 @@ jobs:
   caller の `with:` で `vars` を参照すると workflow 解決に失敗するため、caller は `runner` を通常渡さない。
 - **permissions**: reusable 側は job-level permissions を持たない workflow が多い（caller の権限を上書きして
   `startup_failure` になる事故の再発防止）。必要な permissions は README の各節を参照し、caller で明示する。
+- **timeout-minutes**: 全 reusable の job に `timeout-minutes: ${{ inputs.timeout-minutes }}` を設定済み（number、workflow ごとの既定値。
+  暴走 job が共有 runner を長時間占有するのを防ぐ）。caller は通常渡さない。既定より長い job を持つ caller のみ `with: timeout-minutes: 60` のように上書きする。
+  既定値: rust-test 45 / go-test・python-test・node-test・pre-deploy・e2e-playwright 30 / api-e2e 20 / gitleaks・trivy-scan・ai-review・dep-policy 15 / その他 10。
+  reviewdog-go / python / rust は未対応（別途対応）。
+- **concurrency**: reusable 側では持たない（caller と group が衝突し得るため）。必要なら caller で
+  `concurrency: { group: "${{ github.workflow }}-${{ github.ref }}", cancel-in-progress: true }` 等を宣言する。
 - **`token` secret**（go-test / python-test / rust-test / node-test）: 任意。GitHub token が別途必要な場合のみ渡す。
+- **コマンドを渡す input の取り扱い**: `pre-install` / `install-command`（python-test・rust-test・node-test）と `migration-command`（pre-deploy）は
+  値をそのまま `run:` として実行する仕様。**caller のリテラルに限る**。信頼できない値（`github.head_ref`・PR タイトル・他 job の output など）を渡さない（スクリプトインジェクションになる）。
+  それ以外の値系 input（`install-extras`・`coverage-threshold`・`compose-file`・`working-directory` など）は reusable 側で `env:` 経由にしてあり、シェル／github-script に直展開しない。
 - 以下の表の「既定」は `default` 値。「必須」は `required: true`。
 
 ## テスト系
@@ -287,6 +296,53 @@ required check 名は `<caller job id> / <reusable 内部 job id>` になる（�
 - 形式: `<役割>-<言語>`（例: `test-go` / `test-python` / `lint-python`）。言語を持たない workflow は役割のみ（`gitleaks` / `trivy` / `pr-title`）。
 - **既存 caller の job id は変更しない**（required check 名が変わり、旧名が永遠に満たされなくなる）。**新規 caller と複言語リポにのみ適用**する。
 - job id を変えた場合は、branch protection の required checks 名も合わせて更新する。
+
+## バージョン固定と参照方法
+
+caller が reusable をどの ref で参照するかの方針（#85。repo-compass ADR-011 で「ref 運用は未決」とされた論点の qa-workflows 側の案）。
+**この節は方針の記述のみ**で、タグ・リリースの作成と caller の移行は含まない。
+
+### 現状
+
+- タグ・リリースは **0 件**（`gh api repos/flipslidersand-labs/qa-workflows/tags` と `/releases`、2026-11-03 確認）。
+- そのため現時点で実用的な参照は `@main` か SHA のみ。`@main` は非推奨だが、タグができるまでは唯一の移動しない代替が SHA で、
+  更新が自動で届くのは `@main` だけ。caller は当面 `@main` のままでよく、タグ作成後に下記の推奨へ移行する。
+- 既存 caller には SHA 固定のものがあり、main から遅れたまま修正が届かない例がある（#85）。
+
+### 推奨参照（タグ作成後）
+
+| 用途 | 参照 | 備考 |
+|------|------|------|
+| 通常 | `@v1`（移動 major タグ） | `v1` 内は後方互換の変更のみ。修正が自動で届く |
+| 再現性重視 | `@<40 桁 SHA> # v1.2.3` | SHA の後ろに厳密タグをコメントで付ける。Dependabot がコメントのタグを手掛かりに更新できる |
+| 非推奨 | `@main` | 入力名・job id・既定値の変更を即時に受ける。段階展開できない |
+
+### 破壊的変更の定義
+
+次のいずれかは破壊的変更で、**新 major（`v2`）** で出す。`v1` には入れない。
+
+- input / secret の名前の変更・削除（必須 input の追加を含む）
+- job id の変更（required check 名 `呼び出しジョブ名 / 内側ジョブ名` が変わる）
+- required check 名の変更
+- 既定値の意味の変更（値の変更で caller の挙動が変わるもの）
+
+input の追加（任意・既定値は従来動作）、バグ修正、内部実装の変更は互換変更として `v1.x.y` で出す。
+
+### リリース手順（草案・未実施）
+
+1. main が緑で、上記の破壊的変更を含まないことを確認する。
+2. 厳密タグ `v1.x.y` を main の対象コミットに打つ（例: `git tag -a v1.0.0 <sha> -m "v1.0.0"` → `git push origin v1.0.0`）。厳密タグは動かさない。
+3. 移動タグ `v1` を同じコミットへ付け替える（`git tag -fa v1 <sha> -m "v1"` → `git push --force origin v1`）。**force 更新になる**。
+4. caller の 1 件で `@v1` が解決し実行されることを確認する。
+
+**先に確認すること**: org / リポのタグ保護（tag ruleset）が移動タグの更新を拒否しないか、逆に `v1.x.y` が書き換えられないよう保護するか。
+実施の可否・タイミングは別判断とし、この草案の記載をもって実施を意味しない。
+
+### SHA 固定時の注意
+
+- squash 前の feature ブランチの SHA を pin しない。squash merge 後にブランチを消すと、その SHA は到達不能になりうる（#77 の audit が検出）。
+  pin するのは main に入ったコミット、または厳密タグが指すコミットにする。
+- SHA 固定は更新が自動で届かない。`# v1.2.3` コメントを付け、Dependabot の更新対象にする。
 
 ## 呼び出せない workflow
 

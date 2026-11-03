@@ -27,6 +27,12 @@ on:
         description: 追加チェック URL（改行区切り PATH:EXPECTED_STATUS）
         type: string
         default: ""
+      timeout-minutes:
+        description: >-
+          job の最大実行時間（分）。超過すると job をキャンセルする
+          （caller は通常渡さない）
+        type: number
+        default: 10
 
     outputs:
       rollback:
@@ -63,11 +69,18 @@ on:
         description: 追加チェック URL（改行区切り PATH:EXPECTED_STATUS）
         type: string
         default: ""
+      timeout-minutes:
+        description: >-
+          job の最大実行時間（分）。超過すると job をキャンセルする
+          （caller は通常渡さない）
+        type: number
+        default: 10
 
 jobs:
   smoke:
     name: Smoke Test
     runs-on: ${{ vars.GATE_RUNNER }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
     outputs:
       rollback: ${{ steps.decide.outputs.rollback }}
       status_code: ${{ steps.check.outputs.status_code }}
