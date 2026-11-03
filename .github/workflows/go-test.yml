@@ -82,8 +82,10 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
         env:
           CGO_ENABLED: ${{ contains(inputs.test-flags, '-race') && '1' || '' }}
+          TEST_FLAGS: ${{ inputs.test-flags }}
         run: |
-          go test ${{ inputs.test-flags }} \
+          read -r -a FLAGS <<< "$TEST_FLAGS"
+          go test "${FLAGS[@]}" \
             -coverprofile=coverage.out \
             -covermode=atomic \
             ./...
