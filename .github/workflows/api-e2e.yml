@@ -39,8 +39,10 @@ jobs:
           token: ${{ secrets.QA_PLATFORM_TOKEN }}
 
       - name: Start service
+        env:
+          COMPOSE_FILE_INPUT: ${{ inputs.compose-file }}
         run: |
-          docker compose -f ${{ inputs.compose-file }} up -d --wait
+          docker compose -f "$COMPOSE_FILE_INPUT" up -d --wait
         timeout-minutes: 5
 
       - name: Run k6
@@ -53,4 +55,6 @@ jobs:
 
       - name: Tear down
         if: always()
-        run: docker compose -f ${{ inputs.compose-file }} down -v
+        env:
+          COMPOSE_FILE_INPUT: ${{ inputs.compose-file }}
+        run: docker compose -f "$COMPOSE_FILE_INPUT" down -v

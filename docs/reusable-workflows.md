@@ -19,6 +19,9 @@ jobs:
 - **permissions**: reusable 側は job-level permissions を持たない workflow が多い（caller の権限を上書きして
   `startup_failure` になる事故の再発防止）。必要な permissions は README の各節を参照し、caller で明示する。
 - **`token` secret**（go-test / python-test / rust-test / node-test）: 任意。GitHub token が別途必要な場合のみ渡す。
+- **コマンドを渡す input の取り扱い**: `pre-install` / `install-command`（python-test・rust-test・node-test）と `migration-command`（pre-deploy）は
+  値をそのまま `run:` として実行する仕様。**caller のリテラルに限る**。信頼できない値（`github.head_ref`・PR タイトル・他 job の output など）を渡さない（スクリプトインジェクションになる）。
+  それ以外の値系 input（`install-extras`・`coverage-threshold`・`compose-file`・`working-directory` など）は reusable 側で `env:` 経由にしてあり、シェル／github-script に直展開しない。
 - 以下の表の「既定」は `default` 値。「必須」は `required: true`。
 
 ## テスト系

@@ -84,14 +84,16 @@ jobs:
       - name: Check coverage threshold
         id: coverage
         working-directory: ${{ inputs.working-directory }}
+        env:
+          COVERAGE_THRESHOLD: ${{ inputs.coverage-threshold }}
         run: |
           COVERAGE=$(go tool cover -func=coverage.out \
             | grep "total:" | awk '{print $3}' | tr -d '%')
           echo "Coverage: ${COVERAGE}%"
-          echo "Threshold: ${{ inputs.coverage-threshold }}%"
+          echo "Threshold: ${COVERAGE_THRESHOLD}%"
           echo "pct=${COVERAGE}" >> "$GITHUB_OUTPUT"
-          if awk -v c="$COVERAGE" -v t="${{ inputs.coverage-threshold }}" 'BEGIN{exit !(c<t)}'; then
-            echo "Coverage ${COVERAGE}% is below threshold ${{ inputs.coverage-threshold }}%"
+          if awk -v c="$COVERAGE" -v t="$COVERAGE_THRESHOLD" 'BEGIN{exit !(c<t)}'; then
+            echo "Coverage ${COVERAGE}% is below threshold ${COVERAGE_THRESHOLD}%"
             exit 1
           fi
 
@@ -107,18 +109,22 @@ jobs:
         if: ${{ always() && github.event_name == 'pull_request' }}
         continue-on-error: true
         uses: actions/github-script@v9
+        env:
+          COVERAGE_PCT: ${{ steps.coverage.outputs.pct }}
+          COVERAGE_THRESHOLD: ${{ inputs.coverage-threshold }}
+          WORKING_DIRECTORY: ${{ inputs.working-directory }}
         with:
           script: |
             const MARKER = '<!-- qa-workflows-coverage-comment -->';
-            const pct = '${{ steps.coverage.outputs.pct }}';
-            const threshold = ${{ inputs.coverage-threshold }};
+            const pct = process.env.COVERAGE_PCT;
+            const threshold = Number(process.env.COVERAGE_THRESHOLD);
             let body;
             if (pct === '') {
               body = MARKER + '\n### 📊 Go coverage\ncoverage 計測に失敗しました（Check coverage threshold ステップ未到達）';
             } else {
               const status = Number(pct) >= threshold ? '✅' : '❌';
               body = MARKER + '\n### 📊 Go coverage: **' + pct + '%** ' + status +
-                '\n\n閾値: ' + threshold + '% | working-directory: `${{ inputs.working-directory }}`';
+                '\n\n閾値: ' + threshold + '% | working-directory: `' + process.env.WORKING_DIRECTORY + '`';
             }
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number,
