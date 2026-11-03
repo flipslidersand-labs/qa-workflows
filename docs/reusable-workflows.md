@@ -129,9 +129,9 @@ PR の diff を Vertex AI（Workload Identity Federation 認証）でレビュ�
 
 | workflow | input（既定） |
 |---|---|
-| `reviewdog-go` | `working-directory`(`.`) / `go-version`(`1.23`) / `fail-on-error`(`false`) |
-| `reviewdog-python` | `working-directory`(`.`) / `fail-on-error`(`false`) |
-| `reviewdog-rust` | `working-directory`(`.`) / `rust-version`(`stable`) / `clippy-args`(`--workspace --all-targets`) / `fail-on-error`(`false`) |
+| `reviewdog-go` | `working-directory`(`.`) / `go-version`(`1.23`) / `fail-on-error`(`false`) / `runner`(`""`) |
+| `reviewdog-python` | `working-directory`(`.`) / `fail-on-error`(`false`) / `runner`(`""`) |
+| `reviewdog-rust` | `working-directory`(`.`) / `rust-version`(`stable`) / `clippy-args`(`--workspace --all-targets`) / `fail-on-error`(`false`) / `runner`(`""`) |
 
 ### gitleaks
 
