@@ -38,16 +38,19 @@ jobs:
           set -euo pipefail
           BASE="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
           TARBALL="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
-          mkdir -p /tmp/gl && cd /tmp/gl
+          # 固定の /tmp だと同一ホストの並行ジョブが実行中のバイナリを上書きし
+          # "Text file busy"(exit 126)で落ちる(#99 / #112)。RUNNER_TEMP はジョブ単位で分離される。
+          GL_DIR="${RUNNER_TEMP}/gitleaks"
+          mkdir -p "${GL_DIR}/dl" && cd "${GL_DIR}/dl"
           curl -sSfL --retry 3 --retry-delay 5 -O "${BASE}/${TARBALL}"
           curl -sSfL --retry 3 --retry-delay 5 -O "${BASE}/gitleaks_${GITLEAKS_VERSION}_checksums.txt"
           grep " ${TARBALL}\$" "gitleaks_${GITLEAKS_VERSION}_checksums.txt" | sha256sum -c -
-          tar -xz -C /tmp -f "${TARBALL}" gitleaks
+          tar -xz -C "${GL_DIR}" -f "${TARBALL}" gitleaks
           cd - > /dev/null
-          /tmp/gitleaks version
+          "${GL_DIR}/gitleaks" version
 
           if [ "$FAIL_ON_DETECT" = "true" ]; then
-            /tmp/gitleaks dir . --redact -v --exit-code 1
+            "${GL_DIR}/gitleaks" dir . --redact -v --exit-code 1
           else
-            /tmp/gitleaks dir . --redact -v --exit-code 1 || echo "::warning::gitleaks detected findings (fail-on-detect=false)"
+            "${GL_DIR}/gitleaks" dir . --redact -v --exit-code 1 || echo "::warning::gitleaks detected findings (fail-on-detect=false)"
           fi
