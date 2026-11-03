@@ -40,7 +40,7 @@ jobs:
 ### python-test
 
 clean な `pip install -e ".[dev]"` の後に ruff（`check` と `format --check`）と pytest を実行する。
-**pytest-cov を dev extras に宣言必須**。ruff は既定で最新版が入るため、ローカルより厳しくなる（`ruff-version` で固定可）。
+**pytest-cov を dev extras に宣言必須**。ruff の版は `ruff-version` 入力 > caller の `.pre-commit-config.yaml` の ruff-pre-commit `rev`（先頭の `v` を除く）> 最新、の優先順で決まる。pre-commit と CI の版の正本は `rev` の1箇所。
 
 | input | 既定 | 説明 |
 |---|---|---|
@@ -54,7 +54,7 @@ clean な `pip install -e ".[dev]"` の後に ruff（`check` と `format --check
 | `pytest-args` | `""` | pytest への追加引数（例: `-k "not gpu"`） |
 | `run-tests` | `true` | false で lint / format のみ実行 |
 | `run-lint` | `true` | ruff を実行するか |
-| `ruff-version` | `""` | 空なら最新。固定したい場合に指定 |
+| `ruff-version` | `""` | 明示指定が最優先。空なら `.pre-commit-config.yaml`（リポ直下）の ruff-pre-commit rev、無ければ最新 |
 | `runner` | `""` | 共通事項を参照 |
 
 torch(GPU) / JVM(Spark) など重いランタイム依存を pytest 前に要するリポは、標準の固定ステップに載らないため対象外。
