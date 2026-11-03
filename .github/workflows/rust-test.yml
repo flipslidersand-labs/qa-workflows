@@ -93,7 +93,11 @@ jobs:
 
       - name: Install system deps
         if: ${{ inputs.system-deps != '' }}
-        run: sudo apt-get update && sudo apt-get install -y ${{ inputs.system-deps }}
+        env:
+          SYSTEM_DEPS: ${{ inputs.system-deps }}
+        run: |
+          read -r -a DEPS <<< "$SYSTEM_DEPS"
+          sudo apt-get update && sudo apt-get install -y "${DEPS[@]}"
 
       - name: Pre-install
         if: ${{ inputs.pre-install != '' }}
@@ -108,11 +112,21 @@ jobs:
       - name: cargo clippy
         if: ${{ inputs.run-clippy }}
         working-directory: ${{ inputs.working-directory }}
-        run: cargo clippy ${{ inputs.clippy-args }} -- -D ${{ inputs.clippy-deny }}
+        env:
+          CLIPPY_ARGS: ${{ inputs.clippy-args }}
+          CLIPPY_DENY: ${{ inputs.clippy-deny }}
+        run: |
+          read -r -a CLIPPY_ARR <<< "$CLIPPY_ARGS"
+          read -r -a DENY_ARR <<< "$CLIPPY_DENY"
+          cargo clippy "${CLIPPY_ARR[@]}" -- -D "${DENY_ARR[@]}"
 
       - name: cargo build
         working-directory: ${{ inputs.working-directory }}
-        run: cargo build ${{ inputs.test-args }}
+        env:
+          TEST_ARGS: ${{ inputs.test-args }}
+        run: |
+          read -r -a TEST_ARR <<< "$TEST_ARGS"
+          cargo build "${TEST_ARR[@]}"
 
       - name: Install cargo-llvm-cov
         if: ${{ inputs.run-tests && inputs.run-coverage }}
@@ -123,15 +137,21 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
         env:
           COVERAGE_THRESHOLD: ${{ inputs.coverage-threshold }}
+          TEST_ARGS: ${{ inputs.test-args }}
         run: |
-          cargo llvm-cov ${{ inputs.test-args }} \
+          read -r -a TEST_ARR <<< "$TEST_ARGS"
+          cargo llvm-cov "${TEST_ARR[@]}" \
             --lcov --output-path lcov.info \
             --fail-under-lines "$COVERAGE_THRESHOLD"
 
       - name: Test (no coverage)
         if: ${{ inputs.run-tests && ! inputs.run-coverage }}
         working-directory: ${{ inputs.working-directory }}
-        run: cargo test ${{ inputs.test-args }}
+        env:
+          TEST_ARGS: ${{ inputs.test-args }}
+        run: |
+          read -r -a TEST_ARR <<< "$TEST_ARGS"
+          cargo test "${TEST_ARR[@]}"
 
       - name: Upload coverage
         if: ${{ always() && inputs.run-tests && inputs.run-coverage }}
