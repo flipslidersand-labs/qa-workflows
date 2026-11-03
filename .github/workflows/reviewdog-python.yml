@@ -20,12 +20,19 @@ on:
           （caller は通常渡さない）
         type: string
         default: ""
+      timeout-minutes:
+        description: >-
+          job の最大実行時間（分）。超過すると job をキャンセルする
+          （caller は通常渡さない）
+        type: number
+        default: 15
 
 jobs:
   reviewdog:
     # caller の with で vars を参照すると解決に失敗するため、runner 選択は
     # reusable 側で行う（inputs.runner → vars.GATE_RUNNER）
     runs-on: ${{ inputs.runner != '' && inputs.runner || vars.GATE_RUNNER }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
     steps:
       - uses: actions/checkout@v7
 
