@@ -108,7 +108,7 @@ install → lint → build → test。lint / build / test は package.json の s
 
 PR の diff を Vertex AI（Workload Identity Federation 認証）でレビューし、PR コメントを投稿する。
 `vars.WIF_PROVIDER` が未設定なら認証を skip する（ゲートはブロックしない）。secret の受け渡しは不要。
-リポ変数: `WIF_PROVIDER` / `WIF_SA` / `VERTEX_PROJECT` / `VERTEX_REGION`。caller は `id-token: write` と `pull-requests: write` を宣言する。
+リポ変数: `WIF_PROVIDER` / `WIF_SA` / `VERTEX_PROJECT` / `VERTEX_REGION`。caller は job-level（または最上位）permissions で `pull-requests: write` / `id-token: write` / `contents: read` を必ず宣言する（reusable 側は permissions を持たない。未宣言だと WIF 認証とコメント投稿が失敗する）。
 
 | input | 既定 | 説明 |
 |---|---|---|
