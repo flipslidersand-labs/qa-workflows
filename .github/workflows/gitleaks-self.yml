@@ -1,0 +1,17 @@
+name: gitleaks-self
+
+# qa-workflows 自身が gitleaks reusable を呼ぶ (dogfooding, #70)。
+# runner は reusable 側の vars.GATE_RUNNER に従う（caller では指定しない）。
+# check 名: `gitleaks / Secrets Scan (gitleaks)`（job id = gitleaks）
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  gitleaks:
+    uses: ./.github/workflows/gitleaks.yml
