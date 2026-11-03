@@ -26,10 +26,17 @@ on:
         description: レビュー除外パターン（カンマ区切り glob）
         type: string
         default: "*.lock,*.sum,*.pb.go,*_generated.go"
+      timeout-minutes:
+        description: >-
+          job の最大実行時間（分）。超過すると job をキャンセルする
+          （caller は通常渡さない）
+        type: number
+        default: 15
 
 jobs:
   ai-review:
     runs-on: ${{ vars.GATE_RUNNER }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
 
     steps:
       - uses: actions/checkout@v7

@@ -18,6 +18,12 @@ jobs:
   caller の `with:` で `vars` を参照すると workflow 解決に失敗するため、caller は `runner` を通常渡さない。
 - **permissions**: reusable 側は job-level permissions を持たない workflow が多い（caller の権限を上書きして
   `startup_failure` になる事故の再発防止）。必要な permissions は README の各節を参照し、caller で明示する。
+- **timeout-minutes**: 全 reusable の job に `timeout-minutes: ${{ inputs.timeout-minutes }}` を設定済み（number、workflow ごとの既定値。
+  暴走 job が共有 runner を長時間占有するのを防ぐ）。caller は通常渡さない。既定より長い job を持つ caller のみ `with: timeout-minutes: 60` のように上書きする。
+  既定値: rust-test 45 / go-test・python-test・node-test・pre-deploy・e2e-playwright 30 / api-e2e 20 / gitleaks・trivy-scan・ai-review・dep-policy 15 / その他 10。
+  reviewdog-go / python / rust は未対応（別途対応）。
+- **concurrency**: reusable 側では持たない（caller と group が衝突し得るため）。必要なら caller で
+  `concurrency: { group: "${{ github.workflow }}-${{ github.ref }}", cancel-in-progress: true }` 等を宣言する。
 - **`token` secret**（go-test / python-test / rust-test / node-test）: 任意。GitHub token が別途必要な場合のみ渡す。
 - 以下の表の「既定」は `default` 値。「必須」は `required: true`。
 
