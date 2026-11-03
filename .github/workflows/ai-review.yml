@@ -1,5 +1,12 @@
 name: AI Code Review (Reusable)
 
+# NOTE: 呼び出し側で job-level（または最上位）permissions に
+# `pull-requests: write` / `id-token: write`（Vertex AI への WIF 認証用）/
+# `contents: read` を必ず宣言すること。
+# reusable workflow 側に job-level permissions を持たせると、呼び出し元の
+# permissions を上書きして意図しない startup_failure を招くケースがあるため、
+# ここでは permissions ブロックを持たない（#10 / #8 参照）。
+
 on:
   workflow_call:
     inputs:
@@ -23,9 +30,6 @@ on:
 jobs:
   ai-review:
     runs-on: ${{ vars.GATE_RUNNER }}
-    permissions:
-      pull-requests: write
-      id-token: write # Vertex AI への WIF 認証用（#25 で実際に使用開始）
 
     steps:
       - uses: actions/checkout@v7
