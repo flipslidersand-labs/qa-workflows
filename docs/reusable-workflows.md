@@ -249,6 +249,45 @@ PR タイトルを Conventional Commits 形式 (`<type>(<scope>)?(!)?: <subject>
 
 caller は `contents: read` を宣言し、`pull_request` の types に `edited` を含める。job 名は `pr-title-check`（check 名: `<caller job 名> / pr-title-check`）。
 
+## caller 早見表
+
+各 `.github/workflows/*.yml` の実装（冒頭コメント・job の `permissions`・`github-script` / コメント投稿・`id-token` 利用）から作成。YAML と食い違えば YAML が正。
+「要確認」は実装から断定できなかった箇所。caller の最小 permissions は `contents: read`（private リポの checkout 用）を前提に、追加分のみ列挙する。
+
+| workflow | caller 必須 permissions（追加分） | 必須・主要 input | 推奨 job id | 補足 |
+|---|---|---|---|---|
+| `go-test` | `pull-requests: write`（coverage コメント用。無くても soft-fail） | 必須 input なし。`coverage-threshold` | `test-go` | コメント step は `continue-on-error: true` |
+| `python-test` | `pull-requests: write`（同上） | 必須 input なし。`coverage-threshold` / `working-directory` | `test-python` | 同上 |
+| `rust-test` | `pull-requests: write`（同上） | 必須 input なし。`coverage-threshold` / `test-args` | `test-rust` | 同上 |
+| `node-test` | なし | 必須 input なし。`package-manager` / `test-script` | `test-node` | PR コメント投稿なし（実装に `github-script` 無し） |
+| `ai-review` | `pull-requests: write` と `id-token: write` | 必須 input なし。リポ変数 `WIF_PROVIDER` 等 | `ai-review` | reusable 側の job に同じ permissions を宣言済み。`WIF_PROVIDER` 未設定なら認証 skip |
+| `reviewdog-go` / `-python` / `-rust` | 要確認（`github-pr-review` reporter でインラインコメントを付けるため `pull-requests: write` が必要と推測。実装に permissions 記載なし） | 必須 input なし。`fail-on-error` | `reviewdog-go` / `reviewdog-python` / `reviewdog-rust` | 言語がジョブ名に入っているため規約どおり |
+| `gitleaks` | `contents: read`（冒頭コメントで明記） | 必須 input なし | `gitleaks` | 必須 check に使われる（ADR-006） |
+| `no-ai-artifacts` | `contents: read`（冒頭コメントで明記） | 必須 input なし。`forbidden-pattern` | `no-ai-artifacts` | |
+| `trivy-scan` | 追加なし。SARIF を Code Scanning に上げる場合のみ `security-events: write` | 必須 input なし。`scan-image` + `image-ref` | `trivy` | SARIF 手順は未宣言でも soft-fail（冒頭コメント） |
+| `dep-policy` | 要確認（実装に permissions 記載なし。checkout のみのため `contents: read` で足りると推測） | 必須 input なし。`fail-on-drift` / `policy-ref` | `dep-policy` | caller 直下に `dep-policy.yaml` が無ければ skip |
+| `pre-deploy` | 要確認（permissions 記載なし。checkout のみ） | 必須 input なし。`audit-type` / `migration-command` | `pre-deploy` | 内部 job は `build` / `dependency-audit` / `migration-dry-run` |
+| `smoke-test` | 要確認（permissions 記載なし） | `service-url`（**必須**） | `smoke-test` | output `rollback` / `status-code` |
+| `e2e-playwright` | 要確認（permissions 記載なし） | 必須 input なし。`app-dir` / `base-url` | `e2e-playwright` | secret `APP_ENV`（任意） |
+| `api-e2e` | 要確認（permissions 記載なし） | 必須 input なし。`compose-file` / `base-url` / `k6-script` | `api-e2e` | secret `QA_PLATFORM_TOKEN`（**必須**） |
+| `dependabot-auto-merge` | `contents: write` と `pull-requests: write`（workflow 全体で宣言。冒頭コメント） | 必須 input なし。secret `alert-token`（任意） | `triage` | `if: github.actor == 'dependabot[bot]'` を caller 側に付ける |
+| `dependabot-auto-merge-minor` | `contents: write` と `pull-requests: write`（workflow 全体で宣言。冒頭コメント） | 必須 input なし | `promote` | cron + `workflow_dispatch` の caller 例が冒頭コメントにある |
+| `size-label` | `pull-requests: write`（冒頭コメント） | 必須 input なし。`sizes` | `size-label` | |
+| `stale-pr` | `pull-requests: write` と `issues: write`（冒頭コメント） | 必須 input なし。`days-before-stale` / `days-before-close` | `stale-pr` | |
+| `pr-title` | `contents: read`（冒頭コメント） | 必須 input なし。`types` | `pr-title` | トリガーに `edited` を含める。内部 job 名は `pr-title-check` |
+
+permissions を caller で宣言しないと、reusable 側の要求との不整合で `startup_failure` や権限不足になる（#772/#774 の教訓）。
+`runner` input は共通事項のとおり caller からは通常渡さない。
+
+### job id 命名規約
+
+required check 名は `<caller job id> / <reusable 内部 job id>` になる（例: `test / test`）。汎用名（`test` / `quality`）のまま
+複数言語を 1 リポで呼ぶと同名 check が衝突しうる（仕様からの推論。実例は未確認）。そこで次の規約を使う。
+
+- 形式: `<役割>-<言語>`（例: `test-go` / `test-python` / `lint-python`）。言語を持たない workflow は役割のみ（`gitleaks` / `trivy` / `pr-title`）。
+- **既存 caller の job id は変更しない**（required check 名が変わり、旧名が永遠に満たされなくなる）。**新規 caller と複言語リポにのみ適用**する。
+- job id を変えた場合は、branch protection の required checks 名も合わせて更新する。
+
 ## 呼び出せない workflow
 
 `eval-regression.yml` は `workflow_call` を持たず、`pull_request`（`eval/**` の変更）で直接動く。
