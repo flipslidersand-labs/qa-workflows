@@ -1,0 +1,40 @@
+name: No AI Work Artifacts (Reusable)
+
+# AI ツールの作業副産物(.claude/ 配下、.mcp.json)が追跡対象に入っていないか検査する共通ジョブ。
+# worktree のコピーやローカル絶対パスを含む接続設定が public リポの履歴に残る事故を防ぐ。
+# CLAUDE.md / AGENTS.md は意図して公開するリポがあるため、既定では検査しない。
+#
+# NOTE: 呼び出し側で `permissions: contents: read` を明記すること(gitleaks.yml と同じ理由)。
+
+on:
+  workflow_call:
+    inputs:
+      forbidden-pattern:
+        description: 追跡されていたら失敗にするパスの拡張正規表現(git ls-files の各行に適用)
+        type: string
+        default: '^\.claude/|(^|/)\.mcp\.json$'
+
+jobs:
+  check:
+    name: No AI work artifacts
+    runs-on: ${{ vars.GATE_RUNNER }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - name: Fail if AI work artifacts are tracked
+        env:
+          FORBIDDEN_PATTERN: ${{ inputs.forbidden-pattern }}
+        run: |
+          set -euo pipefail
+          found=$(git ls-files | grep -E -e "$FORBIDDEN_PATTERN" || true)
+          if [ -n "$found" ]; then
+            echo "::error::AI work artifacts are tracked in git:"
+            echo "$found"
+            echo
+            echo "Fix: git rm -r --cached <path> and add it to .gitignore."
+            echo "Note: removing a file does not erase it from history; check past commits for local paths or secrets."
+            exit 1
+          fi
+          echo "OK: no AI work artifacts tracked"

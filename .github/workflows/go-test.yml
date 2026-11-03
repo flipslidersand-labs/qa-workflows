@@ -4,9 +4,9 @@ on:
   workflow_call:
     inputs:
       go-version:
-        description: Go バージョン
+        description: Go バージョン。空なら working-directory の go.mod から読む(go.mod とずれて GOTOOLCHAIN=local で落ちるのを防ぐ)
         type: string
-        default: "1.23"
+        default: ""
       coverage-threshold:
         description: カバレッジ閾値（%）
         type: number
@@ -21,8 +21,8 @@ on:
         default: "."
       runner:
         description: >-
-          実行 runner。未指定なら vars.GATE_RUNNER →
-          ubuntu-latest の順に自動選択（caller は通常渡さない）
+          実行 runner。未指定なら vars.GATE_RUNNER を使う
+          （caller は通常渡さない）
         type: string
         default: ""
       run-vet:
@@ -41,14 +41,15 @@ on:
 jobs:
   test:
     # caller の with で vars を参照すると解決に失敗するため、runner 選択は
-    # reusable 側で行う（inputs.runner → vars.GATE_RUNNER → ubuntu-latest）
-    runs-on: ${{ inputs.runner != '' && inputs.runner || vars.GATE_RUNNER || 'ubuntu-latest' }}
+    # reusable 側で行う（inputs.runner → vars.GATE_RUNNER）
+    runs-on: ${{ inputs.runner != '' && inputs.runner || vars.GATE_RUNNER }}
     steps:
       - uses: actions/checkout@v7
 
       - uses: actions/setup-go@v7
         with:
           go-version: ${{ inputs.go-version }}
+          go-version-file: ${{ inputs.go-version == '' && format('{0}/go.mod', inputs.working-directory) || '' }}
           cache: true
 
       # -race は cgo 必須。素の actions-runner イメージ(arc-dev-nodee 等)には gcc が無く

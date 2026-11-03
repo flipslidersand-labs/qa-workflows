@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   actionlint:
-    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
+    runs-on: ${{ vars.GATE_RUNNER }}
     env:
       ACTIONLINT_VERSION: "1.7.12"
     steps:
@@ -29,3 +29,30 @@ jobs:
       - name: Run actionlint
         run: |
           "$RUNNER_TEMP/actionlint" -color -shellcheck=
+
+  # dependabot 自動マージの判定(全チェック成功のゲート)の回帰テスト(#106)。
+  # 判定本体は dependabot-auto-merge-minor.yml から取り出して固定データで検査する。
+  # jq は runner に無い場合がある(DS1)ため、SHA256 固定で取得する(ADR-007 と同じ流儀)。
+  auto-merge-gate-test:
+    runs-on: ${{ vars.GATE_RUNNER }}
+    env:
+      JQ_VERSION: "1.7.1"
+      JQ_SHA256: "5942c9b0934e510ee61eb3e30273f1b3fe2590df93933a93d7c58b81d19c8ff5"
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install jq (sha256 verified)
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/jqbin"
+          curl -fsSL -o "$RUNNER_TEMP/jqbin/jq" \
+            "https://github.com/jqlang/jq/releases/download/jq-${JQ_VERSION}/jq-linux-amd64"
+          echo "${JQ_SHA256}  $RUNNER_TEMP/jqbin/jq" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/jqbin/jq"
+          echo "$RUNNER_TEMP/jqbin" >> "$GITHUB_PATH"
+
+      - name: "Gate judgement (real PR fixtures and boundaries)"
+        run: bash tests/auto-merge-gate/run.sh
+
+      - name: "Promote step (gh stubbed - merge, label and dry-run branches)"
+        run: bash tests/auto-merge-gate/run-loop.sh
