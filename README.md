@@ -201,4 +201,5 @@ node scripts/qa-workflows-audit.mjs --apply                  # issue を実際�
 
 - **GitHub 上の default branch を見る**: ローカルチェックアウトは見ない。ローカル未 fetch による大量の偽陰性が出たため（2026-09-13）。
 - 自動化は機械的に判定できる範囲のみ: 導入済みなのに open の追跡 issue が残っている → close、未導入・CI あり・言語判定可・追跡 issue 無し → issue 作成。独自 CI の方が高機能、lint 修正が大規模、といった質的判断は `needs-review` としてレポートに出すだけ。
+- dependabot 自動マージ caller の検査（#107）: `dependabot-auto-merge*.yml` が triage（`dependabot-auto-merge.yml`）と promoter（`-minor.yml`）の**両方**を reusable で持つか（reusable を1つも使わない独自実装は対象外）、判定集約を含む版（#108 のマージコミット `2ca417c` 以降。`@main` は新版扱い）を指しているかを報告する。レポートのみで issue は作らない。到達不能 SHA は上記 pin チェックの結果を使う。
 - **`--apply` は org 内の他リポに issue を作る/閉じる**。認証は実行者の `gh` に依存する。まず dry-run で内容を確認してから実行すること。CI 化はスコープ外。
