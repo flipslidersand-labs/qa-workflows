@@ -14,11 +14,18 @@ on:
         description: サイズ閾値のJSON文字列
         type: string
         default: '{"0":"XS","10":"S","30":"M","100":"L","500":"XL","1000":"XXL"}'
+      timeout-minutes:
+        description: >-
+          job の最大実行時間（分）。超過すると job をキャンセルする
+          （caller は通常渡さない）
+        type: number
+        default: 10
 
 
 jobs:
   size-label:
     runs-on: ${{ vars.GATE_RUNNER }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
     steps:
       - uses: pascalgn/size-label-action@56b489b027932ec0cf60438a1a5f1a19c8fc71ff # v0.5.7
         env:
