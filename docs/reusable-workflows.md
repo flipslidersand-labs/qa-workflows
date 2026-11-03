@@ -38,7 +38,7 @@ jobs:
 |---|---|---|
 | `go-version` | `1.23` | Go バージョン |
 | `coverage-threshold` | `60` | 最低カバレッジ（%）。vet/build/test 全パッケージ総計で gate |
-| `test-flags` | `-race -timeout 60s` | go test フラグ |
+| `test-flags` | `-race -timeout 60s` | go test フラグ。空白区切りで分割される。引用符は解釈されない |
 | `working-directory` | `.` | 実行ディレクトリ |
 | `runner` | `""` | 共通事項を参照 |
 | `run-vet` | `true` | `go vet ./...` |
@@ -56,11 +56,11 @@ clean な `pip install -e ".[dev]"` の後に ruff（`check` と `format --check
 | `python-version` | `3.12` | Python バージョン |
 | `coverage-threshold` | `60` | 最低カバレッジ（%）。`--cov=.` の実測で決める |
 | `working-directory` | `.` | 実行ディレクトリ |
-| `test-path` | `tests/` | pytest 対象パス |
+| `test-path` | `tests/` | pytest 対象パス。空白区切りで分割される。引用符は解釈されない |
 | `install-extras` | `dev` | pip extras |
 | `install-command` | `""` | 依存インストールを置換（例: pyproject 無しで `requirements.txt` を使う場合） |
 | `pre-install` | `""` | pip install 前に実行するコマンド（例: torch CPU index の先入れ） |
-| `pytest-args` | `""` | pytest への追加引数（例: `-k "not gpu"`） |
+| `pytest-args` | `""` | pytest への追加引数（例: `-k "not gpu"`）。**据え置き**: 現状は shell が引用符を解釈する（引用符入りの caller があるため #83） |
 | `run-tests` | `true` | false で lint / format のみ実行 |
 | `run-lint` | `true` | ruff を実行するか |
 | `ruff-version` | `""` | 明示指定が最優先。空なら `.pre-commit-config.yaml`（リポ直下）の ruff-pre-commit rev、無ければ最新 |
@@ -76,12 +76,12 @@ fmt + clippy + test（`run-coverage` で cargo-llvm-cov による coverage gate�
 |---|---|---|
 | `rust-version` | `stable` | toolchain（stable / 1.xx / nightly） |
 | `coverage-threshold` | `60` | 最低カバレッジ（%）。`run-coverage=true` 時に gate |
-| `test-args` | `--workspace` | cargo test / llvm-cov のスコープ（例 `-p foo -p bar`） |
-| `clippy-args` | `--workspace --all-targets` | cargo clippy のスコープ |
-| `clippy-deny` | `warnings` | clippy で `-D` する lint |
+| `test-args` | `--workspace` | cargo test / llvm-cov のスコープ（例 `-p foo -p bar`）。空白区切りで分割される。引用符は解釈されない |
+| `clippy-args` | `--workspace --all-targets` | cargo clippy のスコープ。空白区切りで分割される。引用符は解釈されない |
+| `clippy-deny` | `warnings` | clippy で `-D` する lint。空白区切りで分割される。引用符は解釈されない |
 | `working-directory` | `.` | 実行ディレクトリ |
 | `runner` | `""` | 共通事項を参照 |
-| `system-deps` | `""` | 事前に `apt-get install` するパッケージ（空でスキップ） |
+| `system-deps` | `""` | 事前に `apt-get install` するパッケージ（空でスキップ）。空白区切りで分割される。引用符は解釈されない |
 | `rust-targets` | `""` | 追加で入れる rustup target |
 | `pre-install` | `""` | ビルド前に実行するコマンド |
 | `run-fmt` | `true` | `cargo fmt --check` |

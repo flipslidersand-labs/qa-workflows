@@ -138,8 +138,12 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
         env:
           COVERAGE_THRESHOLD: ${{ inputs.coverage-threshold }}
+          TEST_PATH: ${{ inputs.test-path }}
         run: |
-          pytest ${{ inputs.test-path }} ${{ inputs.pytest-args }} \
+          # test-path は空白区切りで分割 (引用符は解釈しない) (#83)
+          read -r -a TEST_PATH_ARR <<< "$TEST_PATH"
+          # pytest-args は引用符入り (-k "not gpu") の caller があるため据え置き (#83)
+          pytest "${TEST_PATH_ARR[@]}" ${{ inputs.pytest-args }} \
             --cov=. \
             --cov-report=term-missing \
             --cov-report=xml:coverage.xml \
