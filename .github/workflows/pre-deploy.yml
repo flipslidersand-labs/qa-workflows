@@ -104,7 +104,7 @@ jobs:
         working-directory: ${{ inputs.audit-path }}
         run: |
           npm audit --audit-level=high \
-            ${{ inputs.fail-on-vuln && '' || '|| true' }}
+            ${{ inputs.fail-on-vuln && '' || '|| true' }} # allow-true: fail-on-vuln=false の明示的な非ブロッキング指定
 
   # ─────────────────────────────────────────────
   # 3. DB migration dry-run

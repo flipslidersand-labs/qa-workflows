@@ -37,14 +37,14 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
           # baseline: main ブランチの最新 report
-          git checkout "origin/${{ github.base_ref }}" -- eval/reports/ 2>/dev/null || true
+          git checkout "origin/${{ github.base_ref }}" -- eval/reports/ 2>/dev/null || true # allow-true: base に reports が無い初回 PR は baseline 無しで続行(次行で空判定)
           BASELINE=$(find eval/reports -maxdepth 1 -name "*.json" 2>/dev/null | sort | tail -1)
           {
             echo "baseline=$BASELINE"
           } >> "$GITHUB_OUTPUT"
 
           # current に戻す
-          git checkout HEAD -- eval/reports/ 2>/dev/null || true
+          git checkout HEAD -- eval/reports/ 2>/dev/null || true # allow-true: 作業ツリー復元の best-effort(失敗しても判定に影響しない)
           CURRENT=$(find eval/reports -maxdepth 1 -name "*.json" 2>/dev/null | sort | tail -1)
           {
             echo "current=$CURRENT"

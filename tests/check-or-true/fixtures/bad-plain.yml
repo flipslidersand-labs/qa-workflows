@@ -1,0 +1,6 @@
+jobs:
+  a:
+    steps:
+      - run: |
+          make test || true
+          x=$(curl u 2>/dev/null || true)

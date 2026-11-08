@@ -107,7 +107,7 @@ jobs:
 
           while [ "$elapsed" -lt "$TIMEOUT" ]; do
             status_code=$(curl -s -o /dev/null -w "%{http_code}" \
-              --max-time 10 --connect-timeout 5 "$URL" 2>/dev/null || true)
+              --max-time 10 --connect-timeout 5 "$URL" 2>/dev/null || true) # allow-true: curl 失敗は status_code 空として下のリトライ判定が扱う
 
             echo "  [${elapsed}s] HTTP ${status_code}"
 
@@ -140,7 +140,7 @@ jobs:
             path="${line%%:*}"
             expected="${line##*:}"
             url="${BASE_URL}${path}"
-            status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$url" 2>/dev/null || true)
+            status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$url" 2>/dev/null || true) # allow-true: 失敗は status 空として直後の期待値比較で FAIL にする
             if [ "$status" = "$expected" ]; then
               echo "  ✅ $path → HTTP $status"
             else

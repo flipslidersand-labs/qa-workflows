@@ -1,0 +1,78 @@
+# zizmor 1.31.1 の限定 audit 設定 (#116)。実行: scripts/run-zizmor.sh
+# 方針: dangerous-triggers / excessive-permissions / artipacked / cache-poisoning の 4 つだけを見る。
+# zizmor には「この audit だけ有効」の指定が無いため、他は disable で落とす(バージョン固定なので audit の増減は起きない)。
+#   - unpinned-uses: 公式 action のタグ固定をどう扱うか未決(ADR-007 は reusable の SHA 固定のみ)。決まるまで外す。
+#   - template-injection: 検出元が inputs.*(呼び出し元が渡す値)ばかりで雑音。zizmor は github.event.* だけに絞れないため
+#     いったん外す(qa-workflows の github.event.* 展開は現状 0 箇所)。
+#   - 上記以外: 今回の対象外(採否は dev-tools-ops#147 の判定どおり)。
+# artipacked は Low(upload-artifact 無しの checkout 等)が 23 件ある。CI では --min-severity medium で足切りする(run-zizmor.sh)。
+rules:
+  anonymous-definition:
+    disable: true
+  archived-uses:
+    disable: true
+  bot-conditions:
+    disable: true
+  concurrency-limits:
+    disable: true
+  dependabot-cooldown:
+    disable: true
+  dependabot-execution:
+    disable: true
+  forbidden-uses:
+    disable: true
+  github-env:
+    disable: true
+  hardcoded-container-credentials:
+    disable: true
+  impostor-commit:
+    disable: true
+  insecure-commands:
+    disable: true
+  known-vulnerable-actions:
+    disable: true
+  misfeature:
+    disable: true
+  obfuscation:
+    disable: true
+  overprovisioned-secrets:
+    disable: true
+  ref-confusion:
+    disable: true
+  ref-version-mismatch:
+    disable: true
+  secrets-inherit:
+    disable: true
+  secrets-outside-env:
+    disable: true
+  self-hosted-runner:
+    disable: true
+  self-repository:
+    disable: true
+  stale-action-refs:
+    disable: true
+  superfluous-actions:
+    disable: true
+  template-injection:
+    disable: true
+  undocumented-permissions:
+    disable: true
+  unpinned-images:
+    disable: true
+  unpinned-uses:
+    disable: true
+  unredacted-secrets:
+    disable: true
+  unsound-condition:
+    disable: true
+  unsound-contains:
+    disable: true
+  unsound-ternary:
+    disable: true
+  use-trusted-publishing:
+    disable: true
+  excessive-permissions:
+    ignore:
+      # smoke-test.yml は reusable で permissions 未指定。実際に使う権限は呼び出し元の設定に依存する。
+      # reusable への job-level permissions は startup_failure の事故歴があるため、別 PR で扱う(要追跡)。
+      - smoke-test.yml:83
