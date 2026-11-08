@@ -75,4 +75,4 @@ rules:
     ignore:
       # smoke-test.yml は reusable で permissions 未指定。実際に使う権限は呼び出し元の設定に依存する。
       # reusable への job-level permissions は startup_failure の事故歴があるため、別 PR で扱う(要追跡)。
-      - smoke-test.yml:80
+      - smoke-test.yml:83
