@@ -57,7 +57,8 @@ jobs:
         with:
           go-version: ${{ inputs.go-version }}
           go-version-file: ${{ inputs.go-version == '' && format('{0}/go.mod', inputs.working-directory) || '' }}
-          cache: true
+          # self-hosted(ARC) は ~/.cache が共有でパーミッション競合しうるため無効化 (#88, python-test #59 と同方針)
+          cache: ${{ runner.environment == 'github-hosted' }}
 
       # -race は cgo 必須。素の actions-runner イメージ(arc-dev-nodee 等)には gcc が無く
       # exit 2 で即失敗するため、必要な時だけ C ツールチェーンを補う（qa-workflows#43）
@@ -82,8 +83,10 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
         env:
           CGO_ENABLED: ${{ contains(inputs.test-flags, '-race') && '1' || '' }}
+          TEST_FLAGS: ${{ inputs.test-flags }}
         run: |
-          go test ${{ inputs.test-flags }} \
+          read -r -a FLAGS <<< "$TEST_FLAGS"
+          go test "${FLAGS[@]}" \
             -coverprofile=coverage.out \
             -covermode=atomic \
             ./...

@@ -1,6 +1,7 @@
 name: Smoke Test (Reusable)
 
 on:
+  # inputs は下の workflow_dispatch と同一に保つ（tests/smoke-inputs/run.sh が検査する）。
   workflow_call:
     inputs:
       service-url:
@@ -42,7 +43,9 @@ on:
         description: 最後に確認した HTTP ステータスコード
         value: ${{ jobs.smoke.outputs.status_code }}
 
-  # このリポ単体で動作確認するための手動実行（#40）。inputs は workflow_call と同一。
+  # このリポ単体で動作確認するための手動実行（#40）。
+  # inputs は workflow_call と同一に保つこと。Actions は inputs の共有(anchor・参照)ができず、
+  # dispatch の UI 用に宣言が必須なため二重定義が残る。ずれは tests/smoke-inputs/run.sh (lint.yml) が検出する (#89)。
   workflow_dispatch:
     inputs:
       service-url:

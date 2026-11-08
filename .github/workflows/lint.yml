@@ -43,6 +43,10 @@ jobs:
           bash tests/check-or-true/run.sh
           bash scripts/check-or-true.sh
 
+      # smoke-test.yml の workflow_call / workflow_dispatch の inputs 二重定義のドリフト検出（#89）。
+      - name: Smoke-test inputs drift check
+        run: bash tests/smoke-inputs/run.sh
+
   # zizmor の限定 audit(zizmor.yml: dangerous-triggers / excessive-permissions / artipacked / cache-poisoning)(#116)。
   # --offline で約 0.1 秒。pip の ==バージョン固定で導入する(unpinned-uses 方針が決まるまで他の audit は外す)。
   zizmor:
