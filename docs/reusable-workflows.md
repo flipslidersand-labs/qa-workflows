@@ -247,6 +247,8 @@ caller は `pull-requests: write` を宣言する。
 |---|---|---|
 | `days-before-stale` | `14` | stale 化までの日数 |
 | `days-before-close` | `7` | stale 後にクローズするまでの日数 |
+| `days-before-issue-stale` | `-1` | Issue を stale にするまでの日数(-1 で Issue は対象外) |
+| `days-before-issue-close` | `-1` | Issue が stale 後にクローズされるまでの日数(-1 でクローズしない)。除外ラベル: `keep-open` / `epic` / `needs-human` |
 
 caller は `pull-requests: write` と `issues: write` を宣言する。
 
