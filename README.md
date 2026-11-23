@@ -1,5 +1,7 @@
 # qa-workflows
 
+Release type: `workflow`
+
 flipslidersand-labs 共通の **reusable GitHub Actions workflows**（public source）。
 
 private の [qa-platform](https://github.com/flipslidersand-labs/qa-platform) は eval データセット等を含むため private のまま。
