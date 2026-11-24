@@ -17,6 +17,16 @@ on:
         description: stale 後、何日でクローズするか
         type: number
         default: 7
+      days-before-issue-stale:
+        description: >-
+          Issue を何日更新が無ければ stale にするか。-1 で Issue は対象外（既定。
+          従来の caller の挙動を変えない）
+        type: number
+        default: -1
+      days-before-issue-close:
+        description: Issue が stale になってから何日でクローズするか。-1 でクローズしない
+        type: number
+        default: -1
       timeout-minutes:
         description: >-
           job の最大実行時間（分）。超過すると job をキャンセルする
@@ -35,10 +45,19 @@ jobs:
           days-before-pr-close: ${{ inputs.days-before-close }}
           stale-pr-label: stale
           exempt-pr-labels: keep-alive
-          # Issue 側は対象外（このIssueはPR放棄率の削減が目的で、Issueの
-          # stale化は別の関心事のため、-1 で無効化する）
-          days-before-issue-stale: -1
-          days-before-issue-close: -1
+          # Issue 側は既定で対象外（-1）。滞留整理したいリポだけ input で有効にする
+          # （dev-platform#2360。値は dev-platform の stale.yml と同じ 60/30 を推奨）
+          days-before-issue-stale: ${{ inputs.days-before-issue-stale }}
+          days-before-issue-close: ${{ inputs.days-before-issue-close }}
+          stale-issue-label: stale
+          exempt-issue-labels: "keep-open,epic,needs-human"
+          stale-issue-message: >-
+            この Issue は${{ inputs.days-before-issue-stale }}日間更新がありません。
+            ${{ inputs.days-before-issue-close }}日以内に更新がなければクローズします（reopen で復活できます）。
+            残す場合はコメントするか `keep-open` ラベルを付けてください。
+          close-issue-message: >-
+            更新がなかったためクローズしました。再開する場合は reopen してください。
+          close-issue-reason: not_planned
           stale-pr-message: >-
             このPRは${{ inputs.days-before-stale }}日間更新がありません。
             ${{ inputs.days-before-close }}日以内にアクションがなければクローズします。
