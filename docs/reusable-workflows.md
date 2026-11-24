@@ -301,7 +301,7 @@ required check 名は `<caller job id> / <reusable 内部 job id>` になる（�
 
 ## バージョン固定と参照方法
 
-caller が reusable をどの ref で参照するかの方針（#85。repo-compass ADR-011 で「ref 運用は未決」とされた論点の qa-workflows 側の案）。
+caller が reusable をどの ref で参照するかの方針（#85。org の方針で「ref 運用は未決」とされた論点の qa-workflows 側の案）。
 **この節は方針の記述のみ**で、タグ・リリースの作成と caller の移行は含まない。
 
 ### 現状
